@@ -1,27 +1,11 @@
+import { kv } from '@vercel/kv';
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 
-const dataFilePath = path.join(process.cwd(), 'data', 'waitlist.json');
-
-// Ensure data directory exists
-function ensureDataFile() {
-  const dataDir = path.join(process.cwd(), 'data');
-
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(dataFilePath)) {
-    fs.writeFileSync(dataFilePath, JSON.stringify([], null, 2));
-  }
-}
+const WAITLIST_KEY = 'studia:waitlist';
 
 // POST - Add email to waitlist
 export async function POST(request: Request) {
   try {
-    ensureDataFile();
-
     const { email, language } = await request.json();
 
     // Validate email
@@ -33,12 +17,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Read existing emails
-    const fileContent = fs.readFileSync(dataFilePath, 'utf-8');
-    const emails = JSON.parse(fileContent);
+    // Get existing emails
+    const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
 
     // Check if email already exists
-    const emailExists = emails.some((entry: any) => entry.email.toLowerCase() === email.toLowerCase());
+    const emailExists = emails.some(
+      (entry: any) => entry.email.toLowerCase() === email.toLowerCase()
+    );
 
     if (emailExists) {
       return NextResponse.json(
@@ -57,10 +42,10 @@ export async function POST(request: Request) {
 
     emails.push(newEntry);
 
-    // Save to file
-    fs.writeFileSync(dataFilePath, JSON.stringify(emails, null, 2));
+    // Save to KV
+    await kv.set(WAITLIST_KEY, emails);
 
-    console.log(`✅ New waitlist signup: ${email} (${language})`);
+    console.log(`✅ New signup: ${email} (${language})`);
 
     return NextResponse.json(
       { message: 'Successfully added to waitlist!' },
@@ -83,17 +68,11 @@ export async function GET(request: Request) {
     const expectedAuth = `Bearer ${process.env.ADMIN_SECRET}`;
 
     if (authHeader !== expectedAuth) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    ensureDataFile();
-
-    // Read emails
-    const fileContent = fs.readFileSync(dataFilePath, 'utf-8');
-    const emails = JSON.parse(fileContent);
+    // Get all emails
+    const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
 
     return NextResponse.json({
       total: emails.length,
