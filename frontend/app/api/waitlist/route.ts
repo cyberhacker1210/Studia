@@ -1,9 +1,5 @@
-import { kv } from '@vercel/kv';
 import { NextResponse } from 'next/server';
 
-const WAITLIST_KEY = 'studia:waitlist';
-
-// POST - Add email to waitlist
 export async function POST(request: Request) {
   try {
     const { email, language } = await request.json();
@@ -17,69 +13,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get existing emails from KV
-    const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
-
-    // Check if email already exists
-    const emailExists = emails.some(
-      (entry: any) => entry.email.toLowerCase() === email.toLowerCase()
-    );
-
-    if (emailExists) {
-      return NextResponse.json(
-        { error: 'Email already registered' },
-        { status: 409 }
-      );
-    }
-
-    // Add new email
-    const newEntry = {
-      id: emails.length + 1,
-      email,
-      language,
-      createdAt: new Date().toISOString(),
+    // Send to Web3Forms
+    const formData = {
+      access_key: '0a691a94-8de8-445c-82b1-a5accf0d48f7', // ⚠️ REMPLACE PAR TA VRAIE CLÉ
+      subject: `🎉 New Studia Waitlist Signup!`,
+      from_name: 'Studia Waitlist',
+      email: email,
+      message: `New signup!\n\nEmail: ${email}\nLanguage: ${language}\nTime: ${new Date().toLocaleString()}\n\nTotal signups so far: Check your inbox!`,
     };
 
-    emails.push(newEntry);
+    const response = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
 
-    // Save to KV
-    await kv.set(WAITLIST_KEY, emails);
+    if (!response.ok) {
+      throw new Error('Failed to send email');
+    }
 
-    console.log(`✅ New signup: ${email} (${language})`);
+    console.log(`✅ Signup: ${email} (${language})`);
 
     return NextResponse.json(
       { message: 'Successfully added to waitlist!' },
       { status: 201 }
     );
   } catch (error) {
-    console.error('❌ Waitlist error:', error);
+    console.error('❌ Error:', error);
     return NextResponse.json(
       { error: 'Failed to add to waitlist' },
-      { status: 500 }
-    );
-  }
-}
-
-// GET - View all emails (Admin only)
-export async function GET(request: Request) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    const expectedAuth = `Bearer ${process.env.ADMIN_SECRET}`;
-
-    if (authHeader !== expectedAuth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
-
-    return NextResponse.json({
-      total: emails.length,
-      emails: emails,
-    });
-  } catch (error) {
-    console.error('❌ Error fetching emails:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch emails' },
       { status: 500 }
     );
   }
