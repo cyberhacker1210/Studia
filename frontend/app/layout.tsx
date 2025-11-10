@@ -2,8 +2,20 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { GoogleAnalytics } from '@next/third-parties/google' ;
 
 const inter = Inter({ subsets: ["latin"] });
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <GoogleAnalytics gaId="G-TCC99EXG30" />
+      </body>
+    </html>
+  )
+}
 
 export const metadata: Metadata = {
   title: "Studia - AI-Powered Learning Platform",
