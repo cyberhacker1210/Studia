@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get existing emails
+    // Get existing emails from KV
     const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
 
     // Check if email already exists
@@ -63,7 +63,6 @@ export async function POST(request: Request) {
 // GET - View all emails (Admin only)
 export async function GET(request: Request) {
   try {
-    // Check admin authorization
     const authHeader = request.headers.get('authorization');
     const expectedAuth = `Bearer ${process.env.ADMIN_SECRET}`;
 
@@ -71,7 +70,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all emails
     const emails: any[] = (await kv.get(WAITLIST_KEY)) || [];
 
     return NextResponse.json({
