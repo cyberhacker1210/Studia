@@ -2,20 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import { GoogleAnalytics } from '@next/third-parties/google' ;
+import Script from 'next/script';
 
 const inter = Inter({ subsets: ["latin"] });
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body>
-        {children}
-        <GoogleAnalytics gaId="G-TCC99EXG30" />
-      </body>
-    </html>
-  )
-}
 
 export const metadata: Metadata = {
   title: "Studia - AI-Powered Learning Platform",
@@ -33,6 +22,20 @@ export default function RootLayout({
         <LanguageProvider>
           {children}
         </LanguageProvider>
+
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-TCC99EXG30"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-TCC99EXG30');
+          `}
+        </Script>
       </body>
     </html>
   );
