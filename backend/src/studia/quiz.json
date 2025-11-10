@@ -1,0 +1,43 @@
+
+[
+    {
+        "question": "Quelle est la formule de la production selon le cours?",
+        "answer": "Production = Travail humain + Machines + Matériel permanent (capital)"
+    },
+    {
+        "question": "Quel organisme est représenté par l'acronyme Insee?",
+        "answer": "Institut national de la statistique et des études économiques"
+    },
+    {
+        "question": "Comment doit-on considérer la production selon le cours?",
+        "answer": "Comme une activité socialement organisée visant à créer des biens et des services."
+    },
+    {
+        "question": "Qu'est-ce qu'un modèle dans le contexte du cours?",
+        "answer": "Une représentation simplifiée de la réalité, qui ne retient que quelques éléments frais d’algorithmes de causalité entre eux."
+    },
+    {
+        "question": "Quels sont les trois éléments composant le schéma de la production dans le cours?",
+        "answer": "Production, Consommation, Repartition des ressources"
+    },
+    {
+        "question": "Comment définit-on un bien?",
+        "answer": "Un produit matériel résultant de la production."
+    },
+    {
+        "question": "Comment définit-on un service?",
+        "answer": "Un produit immatériel résultant de la production."
+    },
+    {
+        "question": "Quels sont les deux types de production mentionnés dans le cours?",
+        "answer": "Marchande et Non marchande."
+    },
+    {
+        "question": "Qu'est-ce que la production marchande?",
+        "answer": "La production proposée et vendue sur le marché en une qui couvre au moins les coûts de production."
+    },
+    {
+        "question": "Qu'est-ce que la production non marchande?",
+        "answer": "La production non marchande correspond aux services offerts gratuitement ou pour gratuitement par les administrations publiques."
+    }
+]

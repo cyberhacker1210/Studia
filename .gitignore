@@ -1,0 +1,51 @@
+# ========================================
+# FRONTEND (Next.js)
+# ========================================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*.local
+frontend/data/
+frontend/.vercel
+
+# ========================================
+# BACKEND (Python)
+# ========================================
+backend/venv/
+backend/env/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/.pytest_cache/
+backend/.env
+backend/*.db
+backend/*.sqlite3
+backend/.coverage
+backend/htmlcov/
+
+# Virtual environments (root level)
+venv/
+venv_studia/
+env/
+
+# ========================================
+# GÉNÉRAL
+# ========================================
+.DS_Store
+.vscode/
+.idea/
+*.log
+.vercel
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+.env
+.env.local
+.env*.local

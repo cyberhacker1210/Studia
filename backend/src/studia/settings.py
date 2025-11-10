@@ -1,0 +1,1 @@
+IMAGE_PATH= "/Users/leo/Documents/vs code/studia/assets/course_pic/IMG_1025.jpeg"
