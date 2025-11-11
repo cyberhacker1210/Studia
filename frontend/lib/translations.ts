@@ -6,6 +6,7 @@ export const translations = {
       features: 'Features',
       why: 'Why Studia',
       creator: 'Creator',
+      workspace: 'Workspace',
       joinWaitlist: 'Join Waitlist',
     },
     hero: {
@@ -104,6 +105,7 @@ export const translations = {
       features: 'Fonctionnalités',
       why: 'Pourquoi Studia',
       creator: 'Créateur',
+      workspace: 'Workspace',
       joinWaitlist: 'Liste d\'attente',
     },
     hero: {
