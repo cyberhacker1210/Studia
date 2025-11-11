@@ -44,3 +44,6 @@ next-env.d.ts
 # Waitlist data (don't commit user emails!)
 /data
 data/
+
+# Workspace data (if you add local storage later)
+frontend/data/

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles, Rocket } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function Hero() {
@@ -38,16 +38,20 @@ export default function Hero() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up animation-delay-400">
+          {/* Primary CTA - Workspace - MODIFIED */}
           <Link
-            href="#waitlist"
+            href="/workspace"
             className="group bg-primary-600 text-white px-8 py-4 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium shadow-xl hover:shadow-2xl flex items-center space-x-2"
           >
+            <Rocket size={20} />
             <span>{t.hero.cta1}</span>
             <ArrowRight
               size={20}
               className="group-hover:translate-x-1 transition-transform"
             />
           </Link>
+
+          {/* Secondary CTA */}
           <Link
             href="#about"
             className="bg-white text-primary-600 px-8 py-4 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium border-2 border-primary-600"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogIn } from 'lucide-react';
 import LanguageToggle from './LanguageToggle';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -59,6 +59,16 @@ export default function Navbar() {
               </Link>
             ))}
             <LanguageToggle />
+
+            {/* Workspace Button - NEW */}
+            <Link
+              href="/workspace"
+              className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors duration-200 font-medium border-2 border-primary-600 px-4 py-2 rounded-lg hover:bg-primary-50"
+            >
+              <LogIn size={18} />
+              <span>{t.nav.workspace}</span>
+            </Link>
+
             <Link
               href="#waitlist"
               className="bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
@@ -94,9 +104,20 @@ export default function Navbar() {
             <div className="pt-3">
               <LanguageToggle />
             </div>
+
+            {/* Workspace Button Mobile - NEW */}
+            <Link
+              href="/workspace"
+              className="flex items-center justify-center space-x-2 text-primary-600 border-2 border-primary-600 px-6 py-2.5 rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium mt-4"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <LogIn size={18} />
+              <span>{t.nav.workspace}</span>
+            </Link>
+
             <Link
               href="#waitlist"
-              className="block text-center bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium mt-4"
+              className="block text-center bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               {t.nav.joinWaitlist}
