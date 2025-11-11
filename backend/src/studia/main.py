@@ -25,7 +25,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://*.vercel.app",  # Pour tous les déploiements Vercel
+        "studia-seven.vercel.app",  # Pour tous les déploiements Vercel
     ],
     allow_credentials=True,
     allow_methods=["*"],
