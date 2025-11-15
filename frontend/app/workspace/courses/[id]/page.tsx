@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { getCourseById, updateCourse, Course } from '@/lib/courseService';
+import { getCourseFlashcardDecks } from '@/lib/flashcardService';
+import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Loader2, Calendar, Edit2, Check, X, Copy, Download } from 'lucide-react';
+import CourseActions from '@/components/workspace/CourseActions';
 
 export default function CourseDetailPage() {
   const params = useParams();
@@ -16,10 +19,13 @@ export default function CourseDetailPage() {
   const [editedTitle, setEditedTitle] = useState('');
   const [editedDescription, setEditedDescription] = useState('');
   const [copied, setCopied] = useState(false);
+  const [quizCount, setQuizCount] = useState(0);
+  const [flashcardCount, setFlashcardCount] = useState(0);
 
   useEffect(() => {
     if (isLoaded && user && params.id) {
       loadCourse();
+      loadStats();
     }
   }, [isLoaded, user, params.id]);
 
@@ -40,6 +46,27 @@ export default function CourseDetailPage() {
       router.push('/workspace/courses');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    if (!user) return;
+
+    try {
+      // Compter les quiz liés à ce cours
+      const { count: quizCountResult } = await supabase
+        .from('quiz_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      setQuizCount(quizCountResult || 0);
+
+      // Compter les flashcard decks
+      const flashcardDecks = await getCourseFlashcardDecks(user.id, Number(params.id));
+      setFlashcardCount(flashcardDecks.length);
+
+    } catch (err) {
+      console.error('Erreur chargement stats:', err);
     }
   };
 
@@ -98,8 +125,8 @@ export default function CourseDetailPage() {
           Retour aux cours
         </button>
 
-        {/* Course Card */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        {/* Course Info Card */}
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
           {/* Title Section */}
           <div className="p-8 border-b border-gray-200">
             {editing ? (
@@ -167,6 +194,15 @@ export default function CourseDetailPage() {
             )}
           </div>
 
+          {/* Course Actions */}
+          <div className="p-8 bg-gray-50 border-b border-gray-200">
+            <CourseActions
+              courseId={course.id}
+              quizCount={quizCount}
+              flashcardCount={flashcardCount}
+            />
+          </div>
+
           {/* Text Content */}
           <div className="p-8">
             <div className="flex items-center justify-between mb-4">
@@ -189,7 +225,7 @@ export default function CourseDetailPage() {
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 max-h-[600px] overflow-y-auto">
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 max-h-[400px] overflow-y-auto">
               <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 leading-relaxed">
                 {course.extracted_text}
               </pre>
@@ -199,16 +235,6 @@ export default function CourseDetailPage() {
               <span>{course.extracted_text.length} caractères</span>
               <span>{course.extracted_text.split(/\s+/).length} mots</span>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="p-8 bg-gray-50 border-t border-gray-200">
-            <button
-              onClick={() => router.push('/workspace/quiz/generate')}
-              className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all"
-            >
-              ✨ Générer un nouveau quiz
-            </button>
           </div>
         </div>
       </div>

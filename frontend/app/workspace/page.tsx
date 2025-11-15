@@ -12,7 +12,8 @@ import {
   Award,
   ChevronRight,
   Zap,
-  Library
+  Library,
+  Camera
 } from 'lucide-react';
 
 export default function WorkspacePage() {
@@ -52,8 +53,8 @@ export default function WorkspacePage() {
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
       href: '/workspace/flashcards',
-      status: 'coming-soon',
-      badge: 'Bientôt',
+      status: 'available',
+      badge: 'Nouveau',
       badgeColor: 'bg-purple-100 text-purple-700'
     },
     {
@@ -92,7 +93,7 @@ export default function WorkspacePage() {
       textColor: 'text-pink-600',
       href: '/workspace/tutor',
       status: 'coming-soon',
-      badge: 'Nouveau',
+      badge: 'Futur',
       badgeColor: 'bg-pink-100 text-pink-700'
     },
     {
@@ -130,6 +131,33 @@ export default function WorkspacePage() {
         </p>
       </div>
 
+      {/* Capture Button - BIG CTA */}
+      <div className="mb-12">
+        <Link
+          href="/workspace/capture"
+          className="block group"
+        >
+          <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl shadow-2xl p-8 md:p-12 transform hover:scale-105 transition-all duration-300 hover:shadow-pink-500/50">
+            <div className="flex flex-col md:flex-row items-center justify-between text-white">
+              <div className="mb-6 md:mb-0 text-center md:text-left">
+                <div className="inline-block px-4 py-2 bg-white/20 rounded-full text-sm font-semibold mb-4 backdrop-blur-sm">
+                  ⭐ Action Principale
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-2">
+                  📸 Capturer un Cours
+                </h2>
+                <p className="text-blue-100 text-lg">
+                  Prenez une photo et laissez l'IA extraire et sauvegarder votre cours
+                </p>
+              </div>
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm group-hover:rotate-12 transition-transform">
+                <Camera size={48} className="text-white" />
+              </div>
+            </div>
+          </div>
+        </Link>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
         {stats.map((stat) => (
@@ -158,12 +186,10 @@ export default function WorkspacePage() {
 
             const CardContent = (
               <>
-                {/* Icon with gradient background */}
                 <div className={`${feature.bgColor} w-16 h-16 rounded-2xl flex items-center justify-center mb-4`}>
                   <Icon className={feature.textColor} size={32} />
                 </div>
 
-                {/* Badge */}
                 <div className="flex items-center justify-between mb-3">
                   <span className={`text-xs font-semibold px-3 py-1 rounded-full ${feature.badgeColor}`}>
                     {feature.badge}
@@ -173,7 +199,6 @@ export default function WorkspacePage() {
                   )}
                 </div>
 
-                {/* Title & Description */}
                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   {feature.title}
                 </h3>
@@ -181,7 +206,6 @@ export default function WorkspacePage() {
                   {feature.description}
                 </p>
 
-                {/* Status indicator */}
                 {!isAvailable && (
                   <div className="mt-4 text-xs text-gray-500 flex items-center space-x-1">
                     <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
@@ -213,7 +237,6 @@ export default function WorkspacePage() {
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        {/* Quick Start CTA - Quiz */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-8 text-white">
           <div className="flex flex-col items-start">
             <div className="mb-6">
@@ -235,7 +258,6 @@ export default function WorkspacePage() {
           </div>
         </div>
 
-        {/* Quick Access - Cours */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl shadow-xl p-8 text-white">
           <div className="flex flex-col items-start">
             <div className="mb-6">
@@ -275,15 +297,15 @@ export default function WorkspacePage() {
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">3.</span>
-            <span>Utilisez les explications pour approfondir vos connaissances</span>
+            <span>Générez des quiz et flashcards à la demande depuis vos cours</span>
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">4.</span>
-            <span>Relisez vos cours extraits et téléchargez-les en format texte</span>
+            <span>Utilisez les flashcards pour réviser avec la méthode de répétition espacée</span>
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">5.</span>
-            <span>Pratiquez régulièrement avec l'historique des quiz pour de meilleurs résultats</span>
+            <span>Pratiquez régulièrement avec l'historique des quiz pour progresser</span>
           </li>
         </ul>
       </div>
