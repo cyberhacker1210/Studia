@@ -25,9 +25,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://studia-seven.vercel.app",  # ← TON URL EXACTE
-        "https://*.vercel.app",              # ← Wildcard pour les previews
-        "*"    # Pour tous les déploiements Vercel
+        "https://studia-seven.vercel.app",
+        "https://*.vercel.app",
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -58,6 +58,7 @@ class QuizResponse(BaseModel):
     difficulty: str
     questions: List[QuizQuestion]
     createdAt: str
+    extractedText: str  # ✨ Texte extrait du cours
 
 
 # ============================================
@@ -116,7 +117,7 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
                 detail="Image trop grande. Taille maximale : 10MB"
             )
 
-        # Generate quiz
+        # Generate quiz (with extracted text)
         quiz_data = quiz_generator_from_image(
             image_base64=image_base64,
             num_questions=request.num_questions,
@@ -131,7 +132,7 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
             questions.append(QuizQuestion(
                 id=i + 1,
                 question=q["question"],
-                options=q["options"][:4],  # Ensure exactly 4
+                options=q["options"][:4],
                 correctAnswer=q["correctAnswer"],
                 explanation=q.get("explanation", "")
             ))
@@ -141,10 +142,12 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
             source="image",
             difficulty=request.difficulty,
             questions=questions,
-            createdAt=datetime.now().isoformat()
+            createdAt=datetime.now().isoformat(),
+            extractedText=quiz_data.get("extractedText", "")
         )
 
         print(f"✅ SUCCESS: {len(questions)} questions generated")
+        print(f"✅ Extracted text: {len(quiz_data.get('extractedText', ''))} characters")
         print("=" * 60)
 
         return response

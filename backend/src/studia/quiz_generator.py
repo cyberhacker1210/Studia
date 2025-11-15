@@ -137,7 +137,7 @@ def quiz_generator_from_image(
         difficulty: easy, medium, or hard
 
     Returns:
-        dict: Quiz data with questions
+        dict: Quiz data with questions AND extracted text
     """
 
     print(f"📸 Quiz generation started")
@@ -179,7 +179,12 @@ def quiz_generator_from_image(
             if "explanation" not in q:
                 q["explanation"] = ""
 
+        # ✨ Add extracted text to result
+        quiz_data["extractedText"] = course_text
+
         print(f"✅ Quiz successfully generated: {len(quiz_data['questions'])} questions")
+        print(f"✅ Extracted text length: {len(course_text)} characters")
+
         return quiz_data
 
     except json.JSONDecodeError as e:
