@@ -11,7 +11,8 @@ import {
   Calendar,
   Award,
   ChevronRight,
-  Zap
+  Zap,
+  Library
 } from 'lucide-react';
 
 export default function WorkspacePage() {
@@ -28,6 +29,19 @@ export default function WorkspacePage() {
       status: 'available',
       badge: 'Populaire',
       badgeColor: 'bg-blue-100 text-blue-700'
+    },
+    {
+      id: 'courses',
+      title: 'Mes Cours',
+      description: 'Consultez et relisez le texte extrait de vos cours photographiés',
+      icon: Library,
+      color: 'from-teal-500 to-teal-600',
+      bgColor: 'bg-teal-50',
+      textColor: 'text-teal-600',
+      href: '/workspace/courses',
+      status: 'available',
+      badge: 'Nouveau',
+      badgeColor: 'bg-teal-100 text-teal-700'
     },
     {
       id: 'flashcards',
@@ -197,30 +211,55 @@ export default function WorkspacePage() {
         </div>
       </div>
 
-      {/* Quick Start CTA */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-8 text-white">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <div className="mb-6 md:mb-0">
-            <h3 className="text-2xl font-bold mb-2">
-              Prêt à commencer ? 🚀
-            </h3>
-            <p className="text-blue-100">
-              Générez votre premier quiz en moins d'une minute !
-            </p>
+      {/* Quick Actions */}
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        {/* Quick Start CTA - Quiz */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-8 text-white">
+          <div className="flex flex-col items-start">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold mb-2">
+                Prêt à commencer ? 🚀
+              </h3>
+              <p className="text-blue-100">
+                Générez votre premier quiz en moins d'une minute !
+              </p>
+            </div>
+            <Link
+              href="/workspace/quiz"
+              className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg flex items-center space-x-2"
+            >
+              <FileQuestion size={20} />
+              <span>Créer un Quiz</span>
+              <ChevronRight size={20} />
+            </Link>
           </div>
-          <Link
-            href="/workspace/quiz"
-            className="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg flex items-center space-x-2"
-          >
-            <FileQuestion size={20} />
-            <span>Créer un Quiz</span>
-            <ChevronRight size={20} />
-          </Link>
+        </div>
+
+        {/* Quick Access - Cours */}
+        <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl shadow-xl p-8 text-white">
+          <div className="flex flex-col items-start">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold mb-2">
+                Consultez vos cours 📚
+              </h3>
+              <p className="text-teal-100">
+                Relisez le texte extrait de vos photos de cours
+              </p>
+            </div>
+            <Link
+              href="/workspace/courses"
+              className="bg-white text-teal-600 px-6 py-3 rounded-xl font-bold hover:bg-teal-50 transition-all transform hover:scale-105 shadow-lg flex items-center space-x-2"
+            >
+              <Library size={20} />
+              <span>Mes Cours</span>
+              <ChevronRight size={20} />
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* Tips Section */}
-      <div className="mt-12 bg-blue-50 border border-blue-100 rounded-2xl p-8">
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-8">
         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
           <Sparkles className="text-blue-600" size={24} />
           <span>💡 Astuces pour bien démarrer</span>
@@ -232,7 +271,7 @@ export default function WorkspacePage() {
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">2.</span>
-            <span>Commencez avec 5 questions en difficulté moyenne</span>
+            <span>Le texte est automatiquement extrait et sauvegardé dans "Mes Cours"</span>
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">3.</span>
@@ -240,7 +279,11 @@ export default function WorkspacePage() {
           </li>
           <li className="flex items-start space-x-3">
             <span className="text-blue-600 font-bold">4.</span>
-            <span>Pratiquez régulièrement pour de meilleurs résultats</span>
+            <span>Relisez vos cours extraits et téléchargez-les en format texte</span>
+          </li>
+          <li className="flex items-start space-x-3">
+            <span className="text-blue-600 font-bold">5.</span>
+            <span>Pratiquez régulièrement avec l'historique des quiz pour de meilleurs résultats</span>
           </li>
         </ul>
       </div>

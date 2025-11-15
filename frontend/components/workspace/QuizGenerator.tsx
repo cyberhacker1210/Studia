@@ -1,15 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import { generateQuizFromImage, Quiz } from '@/lib/api';
+import { saveCourse } from '@/lib/courseService';
 
 interface QuizGeneratorProps {
   onQuizGenerated: (quiz: Quiz) => void;
 }
 
 export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
+  const { user } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,16 +30,27 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
   };
 
   const handleGenerateQuiz = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage || !user) return;
 
     try {
       setLoading(true);
       setError(null);
 
+      // 1. Générer le quiz (qui inclut le texte extrait)
+      console.log('✨ Génération du quiz...');
       const quiz = await generateQuizFromImage(selectedImage, numQuestions, difficulty);
+      console.log('✅ Quiz généré');
+
+      // 2. Sauvegarder le texte extrait
+      if (quiz.extractedText) {
+        console.log('💾 Sauvegarde du cours...');
+        await saveCourse(user.id, quiz.extractedText);
+        console.log('✅ Cours sauvegardé');
+      }
 
       onQuizGenerated(quiz);
     } catch (err) {
+      console.error('Erreur:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors de la génération du quiz');
     } finally {
       setLoading(false);
@@ -52,7 +66,7 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
         onClear={handleClear}
       />
 
-      {/* Settings - Only show if image is selected */}
+      {/* Settings */}
       {selectedImage && (
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
           <h3 className="text-xl font-bold text-gray-900 mb-6">⚙️ Paramètres du Quiz</h3>
@@ -105,7 +119,7 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
           {/* Generate Button */}
           <button
             onClick={handleGenerateQuiz}
-            disabled={loading}
+            disabled={loading || !user}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
           >
             {loading ? (
@@ -119,6 +133,11 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
               </>
             )}
           </button>
+
+          {/* Info message */}
+          <p className="mt-3 text-sm text-gray-500 text-center">
+            💾 Le texte du cours sera automatiquement extrait et sauvegardé
+          </p>
 
           {/* Error Message */}
           {error && (

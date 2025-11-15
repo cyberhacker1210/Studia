@@ -1,0 +1,183 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { getUserCourses, deleteCourse, Course } from '@/lib/courseService';
+import { ArrowLeft, BookOpen, Trash2, Eye, Loader2, Calendar } from 'lucide-react';
+
+export default function CoursesPage() {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      loadCourses();
+    }
+  }, [isLoaded, user]);
+
+  const loadCourses = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const data = await getUserCourses(user.id);
+      setCourses(data);
+    } catch (err: any) {
+      console.error('Erreur chargement cours:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (courseId: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce cours ?')) return;
+    if (!user) return;
+
+    try {
+      await deleteCourse(courseId, user.id);
+      loadCourses();
+    } catch (err: any) {
+      alert(`Erreur: ${err.message}`);
+    }
+  };
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="text-center">
+          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Chargement des cours...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.push('/');
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => router.push('/workspace')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          >
+            <ArrowLeft size={20} className="mr-2" />
+            Retour au Workspace
+          </button>
+
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            📚 Mes Cours Sauvegardés
+          </h1>
+          <p className="text-gray-600 text-lg">
+            Consultez le texte extrait de vos cours
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border-l-4 border-blue-600">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Total de Cours</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{courses.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <BookOpen size={24} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-600">❌ {error}</p>
+          </div>
+        )}
+
+        {/* Courses List */}
+        {courses.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <BookOpen size={48} className="text-gray-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              Aucun cours sauvegardé
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Générez un quiz pour extraire et sauvegarder automatiquement le texte du cours
+            </p>
+            <button
+              onClick={() => router.push('/workspace/quiz/generate')}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all"
+            >
+              Générer un Quiz
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {courses.map((course) => (
+              <div
+                key={course.id}
+                className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-all transform hover:scale-105"
+              >
+                {/* Preview du texte */}
+                <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-b border-gray-200 h-32 overflow-hidden">
+                  <p className="text-sm text-gray-700 line-clamp-4 font-mono">
+                    {course.extracted_text.substring(0, 200)}...
+                  </p>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
+                    {course.title}
+                  </h3>
+
+                  <div className="flex items-center text-sm text-gray-500 mb-4">
+                    <Calendar size={16} className="mr-1" />
+                    {new Date(course.created_at).toLocaleDateString('fr-FR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </div>
+
+                  <div className="text-xs text-gray-500 mb-4 flex items-center justify-between">
+                    <span>{course.extracted_text.length} caractères</span>
+                    <span>{course.extracted_text.split(/\s+/).length} mots</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => router.push(`/workspace/courses/${course.id}`)}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all"
+                    >
+                      <Eye size={18} />
+                      <span>Lire</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(course.id)}
+                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

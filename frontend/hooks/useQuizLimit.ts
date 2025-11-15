@@ -14,16 +14,13 @@ export function useQuizLimit() {
     }
   }, [isLoaded]);
 
-  // 🔓 MODE GRATUIT ILLIMITÉ (TEMPORAIRE)
-  // Tous les utilisateurs peuvent générer des quiz sans limite
-
-  const canGenerateQuiz = true; // Toujours true pour l'instant
-  const remaining = Infinity; // Illimité
+  // 🔓 MODE GRATUIT ILLIMITÉ
+  const canGenerateQuiz = true;
+  const remaining = Infinity;
   const quizCount = 0;
   const isPremium = false;
 
   const incrementQuizCount = async () => {
-    // Désactivé pour l'instant - pas de compteur
     return;
   };
 
@@ -33,14 +30,12 @@ export function useQuizLimit() {
     }
 
     try {
-      // Vérifier que l'user existe dans Supabase
       const { data: existingUser, error: userCheckError } = await supabase
         .from('users')
         .select('id')
         .eq('id', user.id)
         .single();
 
-      // Si l'user n'existe pas, le créer
       if (userCheckError?.code === 'PGRST116' || !existingUser) {
         await supabase.from('users').insert({
           id: user.id,
@@ -49,7 +44,6 @@ export function useQuizLimit() {
         });
       }
 
-      // Sauvegarder le quiz
       const { error } = await supabase
         .from('quiz_history')
         .insert({
@@ -80,118 +74,3 @@ export function useQuizLimit() {
     saveQuiz
   };
 }
-
-/*
-========================================
-🔒 CODE POUR LE SYSTÈME PREMIUM (DÉSACTIVÉ)
-========================================
-
-À réactiver plus tard en remplaçant le code ci-dessus par celui-ci :
-
-export function useQuizLimit() {
-  const { user, isLoaded } = useUser();
-  const [quizCount, setQuizCount] = useState(0);
-  const [isPremium, setIsPremium] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    async function fetchUsage() {
-      try {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('is_premium')
-          .eq('id', user.id)
-          .single();
-
-        if (userError?.code === 'PGRST116') {
-          await supabase.from('users').insert({
-            id: user.id,
-            email: user.emailAddresses[0]?.emailAddress,
-            is_premium: false
-          });
-
-          await supabase.from('usage_stats').insert({
-            user_id: user.id,
-            quiz_count: 0
-          });
-
-          setIsPremium(false);
-          setQuizCount(0);
-        } else {
-          setIsPremium(userData?.is_premium || false);
-
-          const { data: usageData } = await supabase
-            .from('usage_stats')
-            .select('quiz_count')
-            .eq('user_id', user.id)
-            .single();
-
-          setQuizCount(usageData?.quiz_count || 0);
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUsage();
-  }, [user]);
-
-  const canGenerateQuiz = isPremium || quizCount < 5;
-  const remaining = isPremium ? Infinity : Math.max(0, 5 - quizCount);
-
-  const incrementQuizCount = async () => {
-    if (!user || isPremium) return;
-
-    const newCount = quizCount + 1;
-
-    await supabase
-      .from('usage_stats')
-      .update({ quiz_count: newCount })
-      .eq('user_id', user.id);
-
-    setQuizCount(newCount);
-  };
-
-  const saveQuiz = async (quizData: any, score: number) => {
-    if (!user) {
-      throw new Error('Vous devez être connecté pour sauvegarder');
-    }
-
-    try {
-      const { error } = await supabase
-        .from('quiz_history')
-        .insert({
-          user_id: user.id,
-          quiz_data: quizData,
-          score: score,
-          total_questions: quizData.questions?.length || 0
-        });
-
-      if (error) throw error;
-
-      console.log('✅ Quiz saved to history');
-      return true;
-    } catch (error) {
-      console.error('Error saving quiz:', error);
-      throw error;
-    }
-  };
-
-  return {
-    quizCount,
-    isPremium,
-    canGenerateQuiz,
-    remaining,
-    loading,
-    incrementQuizCount,
-    saveQuiz
-  };
-}
-*/
