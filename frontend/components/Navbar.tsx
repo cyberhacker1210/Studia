@@ -6,10 +6,16 @@ import { Menu, X, LogIn } from 'lucide-react';
 import LanguageToggle from './LanguageToggle';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+// ✅ AJOUT 1: Importer Clerk
+import { UserButton, useUser } from '@clerk/nextjs';
+
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { t } = useLanguage();
+
+  // ✅ AJOUT 2: Hook Clerk pour savoir si user connecté
+  const { isSignedIn, isLoaded } = useUser();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,7 +44,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-24">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
-          <Link href="#home" className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-primary-600 to-primary-400 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg md:text-xl">S</span>
             </div>
@@ -58,23 +64,43 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
+
             <LanguageToggle />
 
-            {/* Workspace Button - NEW */}
-            <Link
-              href="/workspace"
-              className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors duration-200 font-medium border-2 border-primary-600 px-4 py-2 rounded-lg hover:bg-primary-50"
-            >
-              <LogIn size={18} />
-              <span>{t.nav.workspace}</span>
-            </Link>
-
-            <Link
-              href="#waitlist"
-              className="bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
-            >
-              {t.nav.joinWaitlist}
-            </Link>
+            {/* ✅ AJOUT 3: Boutons Auth (Desktop) */}
+            {isLoaded && (
+              <>
+                {isSignedIn ? (
+                  // Si connecté: Workspace + Avatar
+                  <>
+                    <Link
+                      href="/workspace"
+                      className="text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                    >
+                      Workspace
+                    </Link>
+                    <UserButton afterSignOutUrl="/" />
+                  </>
+                ) : (
+                  // Si PAS connecté: Connexion + Commencer
+                  <>
+                    <Link
+                      href="/sign-in"
+                      className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors font-medium"
+                    >
+                      <LogIn size={18} />
+                      <span>Connexion</span>
+                    </Link>
+                    <Link
+                      href="/sign-up"
+                      className="bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all font-medium shadow-lg hover:shadow-xl"
+                    >
+                      Commencer
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -95,33 +121,55 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 href={link.href}
-                className="block text-gray-700 hover:text-primary-600 transition-colors duration-200 font-medium py-2"
+                className="block text-gray-700 hover:text-primary-600 transition-colors font-medium py-2"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.name}
               </Link>
             ))}
+
             <div className="pt-3">
               <LanguageToggle />
             </div>
 
-            {/* Workspace Button Mobile - NEW */}
-            <Link
-              href="/workspace"
-              className="flex items-center justify-center space-x-2 text-primary-600 border-2 border-primary-600 px-6 py-2.5 rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium mt-4"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <LogIn size={18} />
-              <span>{t.nav.workspace}</span>
-            </Link>
-
-            <Link
-              href="#waitlist"
-              className="block text-center bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {t.nav.joinWaitlist}
-            </Link>
+            {/* ✅ AJOUT 4: Boutons Auth (Mobile) */}
+            {isLoaded && (
+              <>
+                {isSignedIn ? (
+                  // Si connecté
+                  <>
+                    <Link
+                      href="/workspace"
+                      className="block text-center bg-primary-100 text-primary-700 px-6 py-2.5 rounded-lg font-medium mt-4"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Workspace
+                    </Link>
+                    <div className="flex justify-center mt-4">
+                      <UserButton afterSignOutUrl="/" />
+                    </div>
+                  </>
+                ) : (
+                  // Si PAS connecté
+                  <>
+                    <Link
+                      href="/sign-in"
+                      className="block text-center border-2 border-primary-600 text-primary-600 px-6 py-2.5 rounded-lg font-medium mt-4"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Connexion
+                    </Link>
+                    <Link
+                      href="/sign-up"
+                      className="block text-center bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 transition-all font-medium"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Commencer
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
