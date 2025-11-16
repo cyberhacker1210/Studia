@@ -8,10 +8,8 @@ from typing import Literal, List
 from datetime import datetime
 import uuid
 import traceback
-import json
-import re
 
-from .quiz_generator import quiz_generator_from_image, generate_quiz_mcq, clean_json_text
+from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text
 from .flashcard_generator import generate_flashcards
 
 app = FastAPI(
@@ -88,6 +86,7 @@ class FlashcardResponse(BaseModel):
 # ============================================
 
 def extract_base64_from_data_uri(data_uri: str) -> str:
+    """Extract base64 data from data URI"""
     if "base64," in data_uri:
         return data_uri.split("base64,")[1]
     return data_uri
@@ -122,13 +121,14 @@ def health():
 
 @app.post("/api/quiz/generate-from-image", response_model=QuizResponse)
 async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
-    """Generate quiz from course image"""
+    """Generate quiz from course image with self-refining"""
     try:
         print("=" * 60)
         print(f"📸 NEW QUIZ REQUEST (FROM IMAGE)")
         print(f"   Questions: {request.num_questions}")
         print(f"   Difficulty: {request.difficulty}")
 
+        # Extract base64
         image_base64 = extract_base64_from_data_uri(request.image)
         image_size_mb = (len(image_base64) * 3 / 4) / (1024 * 1024)
         print(f"   Image size: {image_size_mb:.2f}MB")
@@ -136,12 +136,15 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
         if image_size_mb > 10:
             raise HTTPException(status_code=400, detail="Image trop grande (max 10MB)")
 
+        # ✅ Generate quiz with self-refining
         quiz_data = quiz_generator_from_image(
             image_base64=image_base64,
             num_questions=request.num_questions,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            enable_refinement=True  # Self-refining activé
         )
 
+        # Format response
         quiz_id = str(uuid.uuid4())
         questions = []
 
@@ -164,7 +167,12 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
         )
 
         print(f"✅ SUCCESS: {len(questions)} questions + {len(quiz_data.get('extractedText', ''))} chars extracted")
+        if "metadata" in quiz_data:
+            print(f"   📊 Metadata:")
+            print(f"      Text confidence: {quiz_data['metadata'].get('extraction', {}).get('confidence_score', 'N/A')}%")
+            print(f"      Quiz quality: {quiz_data['metadata'].get('quiz_quality', {}).get('final_score', 'N/A')}%")
         print("=" * 60)
+
         return response
 
     except HTTPException:
@@ -178,7 +186,7 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
 
 @app.post("/api/quiz/generate-from-text", response_model=QuizResponse)
 async def generate_quiz_from_text_endpoint(request: QuizGenerateFromTextRequest):
-    """Generate quiz from course text"""
+    """Generate quiz from course text with self-refining"""
     try:
         print("=" * 60)
         print(f"📝 NEW QUIZ REQUEST (FROM TEXT)")
@@ -192,36 +200,13 @@ async def generate_quiz_from_text_endpoint(request: QuizGenerateFromTextRequest)
                 detail="Le texte du cours est trop court ou vide"
             )
 
-        # Generate quiz from text
-        quiz_json = generate_quiz_mcq(
-            request.course_text,
-            request.num_questions,
-            request.difficulty
+        # ✅ Generate quiz with self-refining
+        quiz_data = quiz_generator_from_text(
+            course_text=request.course_text,
+            num_questions=request.num_questions,
+            difficulty=request.difficulty,
+            enable_refinement=True  # Self-refining activé
         )
-
-        # Clean and parse JSON
-        quiz_json_clean = clean_json_text(quiz_json)
-        quiz_data = json.loads(quiz_json_clean)
-
-        # Validate structure
-        if "questions" not in quiz_data:
-            raise ValueError("Invalid quiz format: missing 'questions' key")
-
-        if len(quiz_data["questions"]) != request.num_questions:
-            print(f"⚠️ Warning: Expected {request.num_questions} questions, got {len(quiz_data['questions'])}")
-
-        # Validate each question
-        for i, q in enumerate(quiz_data["questions"]):
-            if "question" not in q:
-                raise ValueError(f"Question {i + 1}: missing 'question' field")
-            if "options" not in q or len(q["options"]) != 4:
-                raise ValueError(f"Question {i + 1}: must have exactly 4 options")
-            if "correctAnswer" not in q:
-                raise ValueError(f"Question {i + 1}: missing 'correctAnswer' field")
-            if not (0 <= q["correctAnswer"] <= 3):
-                raise ValueError(f"Question {i + 1}: correctAnswer must be 0-3")
-            if "explanation" not in q:
-                q["explanation"] = ""
 
         # Format response
         quiz_id = str(uuid.uuid4())
@@ -246,7 +231,10 @@ async def generate_quiz_from_text_endpoint(request: QuizGenerateFromTextRequest)
         )
 
         print(f"✅ SUCCESS: {len(questions)} questions generated from text")
+        if "metadata" in quiz_data:
+            print(f"   📊 Quiz quality: {quiz_data['metadata'].get('quiz_quality', {}).get('final_score', 'N/A')}%")
         print("=" * 60)
+
         return response
 
     except HTTPException:
@@ -260,7 +248,7 @@ async def generate_quiz_from_text_endpoint(request: QuizGenerateFromTextRequest)
 
 @app.post("/api/flashcards/generate", response_model=FlashcardResponse)
 async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
-    """Generate flashcards from course text"""
+    """Generate flashcards from course text with self-refining"""
     try:
         print("=" * 60)
         print(f"🎴 NEW FLASHCARDS REQUEST")
@@ -274,12 +262,15 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
                 detail="Le texte du cours est trop court ou vide"
             )
 
+        # ✅ Generate flashcards with self-refining
         flashcards_data = generate_flashcards(
             course_text=request.course_text,
             num_cards=request.num_cards,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            enable_refinement=True  # Self-refining activé
         )
 
+        # Format response
         flashcard_id = str(uuid.uuid4())
         flashcards = []
 
@@ -298,7 +289,10 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
         )
 
         print(f"✅ SUCCESS: {len(flashcards)} flashcards generated")
+        if "metadata" in flashcards_data:
+            print(f"   📊 Quality score: {flashcards_data['metadata'].get('quality', {}).get('final_score', 'N/A')}%")
         print("=" * 60)
+
         return response
 
     except HTTPException:
@@ -321,4 +315,14 @@ async def startup_event():
     print("   - POST /api/quiz/generate-from-image")
     print("   - POST /api/quiz/generate-from-text")
     print("   - POST /api/flashcards/generate")
+    print("=" * 60)
+    print("🔄 Self-refining: ENABLED")
+    print("   ✓ Text extraction validation")
+    print("   ✓ Quiz quality validation")
+    print("   ✓ Flashcard quality validation")
     print("=" * 60 + "\n")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
