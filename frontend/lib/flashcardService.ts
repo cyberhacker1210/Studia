@@ -122,7 +122,7 @@ export async function deleteFlashcardDeck(
 }
 
 /**
- * Sauvegarder la progression d'une carte
+ * Sauvegarder la progression d'une carte (VERSION CORRIGÉE)
  */
 export async function saveCardProgress(
   userId: string,
@@ -130,38 +130,47 @@ export async function saveCardProgress(
   cardIndex: number,
   remembered: boolean
 ): Promise<void> {
-  // Récupérer la progression actuelle
-  const { data: existing } = await supabase
-    .from('flashcard_progress')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('deck_id', deckId)
-    .eq('card_index', cardIndex)
-    .single();
+  try {
+    console.log('💾 Sauvegarde progression:', { userId, deckId, cardIndex, remembered });
 
-  let easeFactor = existing?.ease_factor || 2.5;
-  let intervalDays = existing?.interval_days || 1;
-  let repetitions = existing?.repetitions || 0;
+    // 1. Récupérer la progression actuelle
+    const { data: existing, error: fetchError } = await supabase
+      .from('flashcard_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('deck_id', deckId)
+      .eq('card_index', cardIndex)
+      .maybeSingle(); // ✅ maybeSingle() pour éviter les erreurs si pas de résultat
 
-  if (remembered) {
-    repetitions += 1;
-    if (repetitions === 1) {
-      intervalDays = 1;
-    } else if (repetitions === 2) {
-      intervalDays = 6;
-    } else {
-      intervalDays = Math.round(intervalDays * easeFactor);
+    if (fetchError) {
+      console.error('❌ Erreur lecture progression:', fetchError);
+      throw fetchError;
     }
-    easeFactor = Math.max(1.3, easeFactor + 0.1);
-  } else {
-    repetitions = 0;
-    intervalDays = 1;
-    easeFactor = Math.max(1.3, easeFactor - 0.2);
-  }
 
-  const { error } = await supabase
-    .from('flashcard_progress')
-    .upsert({
+    console.log('📊 Progression existante:', existing);
+
+    // 2. Calculer les nouvelles valeurs selon l'algorithme de répétition espacée
+    let easeFactor = existing?.ease_factor || 2.5;
+    let intervalDays = existing?.interval_days || 1;
+    let repetitions = existing?.repetitions || 0;
+
+    if (remembered) {
+      repetitions += 1;
+      if (repetitions === 1) {
+        intervalDays = 1;
+      } else if (repetitions === 2) {
+        intervalDays = 6;
+      } else {
+        intervalDays = Math.round(intervalDays * easeFactor);
+      }
+      easeFactor = Math.max(1.3, easeFactor + 0.1);
+    } else {
+      repetitions = 0;
+      intervalDays = 1;
+      easeFactor = Math.max(1.3, easeFactor - 0.2);
+    }
+
+    const progressData = {
       user_id: userId,
       deck_id: deckId,
       card_index: cardIndex,
@@ -169,9 +178,64 @@ export async function saveCardProgress(
       ease_factor: easeFactor,
       interval_days: intervalDays,
       repetitions: repetitions
-    });
+    };
 
-  if (error) throw error;
+    console.log('💾 Données à sauvegarder:', progressData);
+
+    // 3. UPDATE si existe, sinon INSERT
+    if (existing) {
+      console.log('🔄 UPDATE progression existante (id:', existing.id, ')');
+
+      const { error } = await supabase
+        .from('flashcard_progress')
+        .update({
+          last_reviewed: progressData.last_reviewed,
+          ease_factor: progressData.ease_factor,
+          interval_days: progressData.interval_days,
+          repetitions: progressData.repetitions
+        })
+        .eq('user_id', userId)
+        .eq('deck_id', deckId)
+        .eq('card_index', cardIndex);
+
+      if (error) {
+        console.error('❌ Erreur UPDATE:', error);
+        throw error;
+      }
+
+      console.log('✅ UPDATE réussi');
+
+    } else {
+      console.log('➕ INSERT nouvelle progression');
+
+      const { error } = await supabase
+        .from('flashcard_progress')
+        .insert(progressData);
+
+      if (error) {
+        console.error('❌ Erreur INSERT:', error);
+        throw error;
+      }
+
+      console.log('✅ INSERT réussi');
+    }
+
+    console.log('✅ Progression sauvegardée avec succès');
+
+  } catch (error: any) {
+    console.error('❌ ERREUR COMPLÈTE saveCardProgress:', {
+      error,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      userId,
+      deckId,
+      cardIndex,
+      remembered
+    });
+    throw error;
+  }
 }
 
 /**

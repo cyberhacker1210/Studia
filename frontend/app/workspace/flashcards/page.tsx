@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { getUserFlashcardDecks, deleteFlashcardDeck, FlashcardDeck } from '@/lib/flashcardService';
-import { ArrowLeft, Layers, Trash2, Eye, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, Layers, Trash2, Eye, Loader2, Calendar, Sparkles } from 'lucide-react';
 
 export default function FlashcardsPage() {
   const { user, isLoaded } = useUser();
@@ -77,12 +77,25 @@ export default function FlashcardsPage() {
             Retour au Workspace
           </button>
 
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🎴 Mes Flashcards
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Tous vos decks de révision
-          </p>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                🎴 Mes Flashcards
+              </h1>
+              <p className="text-gray-600 text-lg">
+                Tous vos decks de révision
+              </p>
+            </div>
+
+            {/* Bouton Créer */}
+            <button
+              onClick={() => router.push('/workspace/flashcards/generate')}
+              className="mt-4 md:mt-0 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg transform hover:scale-105 flex items-center space-x-2"
+            >
+              <Sparkles size={24} />
+              <span>✨ Créer des Flashcards</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -131,12 +144,20 @@ export default function FlashcardsPage() {
             <p className="text-gray-600 mb-6">
               Créez votre premier deck depuis un cours !
             </p>
-            <button
-              onClick={() => router.push('/workspace/courses')}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all"
-            >
-              Voir mes cours
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => router.push('/workspace/flashcards/generate')}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-all"
+              >
+                ✨ Créer des Flashcards
+              </button>
+              <button
+                onClick={() => router.push('/workspace/courses')}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+              >
+                📚 Voir mes cours
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -151,7 +172,7 @@ export default function FlashcardsPage() {
                     <span className="px-3 py-1 bg-purple-200 text-purple-800 text-xs font-semibold rounded-full">
                       {deck.flashcards.length} cartes
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 capitalize">
                       {deck.difficulty}
                     </span>
                   </div>

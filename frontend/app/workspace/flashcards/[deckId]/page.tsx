@@ -31,7 +31,7 @@ export default function FlashcardReviewPage() {
       }
       setDeck(data);
     } catch (err) {
-      console.error('Erreur:', err);
+      console.error('Erreur chargement deck:', err);
       router.push('/workspace/flashcards');
     } finally {
       setLoading(false);
@@ -42,10 +42,24 @@ export default function FlashcardReviewPage() {
     if (!user || !deck) return;
 
     try {
+      console.log('💾 Tentative sauvegarde progression...');
       await saveCardProgress(user.id, deck.id, cardIndex, remembered);
       console.log(`✅ Progression sauvegardée: carte ${cardIndex}, connu: ${remembered}`);
-    } catch (err) {
-      console.error('Erreur sauvegarde progression:', err);
+    } catch (err: any) {
+      // ✅ CORRECTION: Meilleur logging de l'erreur
+      console.error('❌ Erreur sauvegarde progression:', {
+        error: err,
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+        userId: user.id,
+        deckId: deck.id,
+        cardIndex
+      });
+
+      // Optionnel: Afficher un toast/notification à l'utilisateur
+      // toast.error('Impossible de sauvegarder la progression');
     }
   };
 
