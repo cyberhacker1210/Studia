@@ -10,6 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Studia - AI-Powered Learning Platform",
   description: "Automate your learning with AI. Create flashcards, generate quizzes, and study smarter with Studia.",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes", // ✅ IMPORTANT
 };
 
 export default function RootLayout({
@@ -19,13 +20,15 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="scroll-smooth">
-        <body className={inter.className}>
+      <html lang="fr" className="scroll-smooth">
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        </head>
+        <body className={`${inter.className} antialiased`}>
           <LanguageProvider>
             {children}
           </LanguageProvider>
 
-          {/* Google Analytics */}
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-TCC99EXG30"
             strategy="afterInteractive"

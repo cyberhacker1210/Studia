@@ -2,20 +2,181 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Reset de base pour mobile */
 * {
-  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  @apply bg-white text-gray-900;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden; /* ✅ Empêche scroll horizontal */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Corrections texte mobile */
+@layer base {
+  html {
+    font-size: 16px; /* Base pour mobile */
+  }
+
+  /* Éviter les textes trop petits sur mobile */
+  p, span, div, li {
+    font-size: inherit;
+    line-height: 1.5;
+  }
+
+  /* Headings responsive */
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.2;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+  /* Text qui ne déborde pas */
+  .text-wrap {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
   }
 
-  .section-padding {
-    @apply px-6 md:px-12 lg:px-24 py-16 md:py-24;
+  /* Container safe pour mobile */
+  .safe-area {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
+
+  /* Touch optimizations */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Smooth scrolling */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Animations */
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.5s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 0.2s;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 0.4s;
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Section spacing */
+  .section-padding {
+    padding: 4rem 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .section-padding {
+      padding: 6rem 3rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .section-padding {
+      padding: 8rem 6rem;
+    }
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Fix pour inputs sur iOS */
+input,
+textarea,
+select {
+  font-size: 16px !important; /* ✅ Empêche le zoom automatique sur iOS */
+}
+
+/* Fix pour les boutons sur mobile */
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Scroll snap pour mobile */
+.snap-container {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.snap-item {
+  scroll-snap-align: start;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
