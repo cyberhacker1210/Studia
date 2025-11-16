@@ -1,5 +1,5 @@
 """
-Quiz Generator - Extract text from images and generate MCQ quizzes
+Quiz Generator - Extract text from images and generate MCQ quizzes with SELF-REFINING
 """
 import os
 import re
@@ -15,9 +15,21 @@ client = OpenAI(api_key=api_key)
 
 
 def extract_text(image_base64: str) -> str:
-    """Extract text from image using GPT-4 Vision"""
+    """
+    🔄 STEP 1: Extract text from image using GPT-4 Vision
+    """
 
-    prompt = "Extract the text from this image: don't add any information or comments."
+    prompt = """Extract ALL the text from this image with maximum accuracy.
+
+RULES:
+- Extract EVERYTHING: titles, paragraphs, lists, formulas, tables, diagrams labels
+- Preserve the structure (use line breaks and spacing)
+- Do NOT add any comments or explanations
+- If mathematical formulas, write them clearly
+- If tables, format them readably
+- If handwritten, do your best to transcribe accurately
+
+Return ONLY the extracted text, nothing else."""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -45,11 +57,260 @@ def extract_text(image_base64: str) -> str:
     return extracted_text
 
 
+def verify_and_refine_extraction(image_base64: str, extracted_text: str) -> dict:
+    """
+    🔄 STEP 2: Verify extraction accuracy and refine if needed
+
+    Returns:
+    {
+        "is_accurate": bool,
+        "confidence_score": 0-100,
+        "issues": [...],
+        "refined_text": str (corrected text if needed)
+    }
+    """
+
+    print("🔍 Verifying text extraction accuracy...")
+
+    verification_prompt = f"""You are a text extraction quality validator.
+
+Compare the EXTRACTED TEXT with the ORIGINAL IMAGE and check:
+
+1. Are all visible words captured?
+2. Is the structure preserved (paragraphs, lists, etc.)?
+3. Are formulas/equations transcribed correctly?
+4. Are there any obvious errors or missing parts?
+5. Is the text readable and makes sense?
+
+EXTRACTED TEXT:
+{extracted_text}
+
+Return ONLY valid JSON:
+{{
+  "is_accurate": true or false,
+  "confidence_score": 0-100,
+  "issues": [
+    {{
+      "type": "missing_text/wrong_transcription/formatting_error",
+      "severity": "high/medium/low",
+      "description": "What's wrong",
+      "location": "Where in the text"
+    }}
+  ],
+  "needs_refinement": true or false,
+  "general_assessment": "Brief overall evaluation"
+}}
+
+If confidence_score < 85%, set needs_refinement = true"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": verification_prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_base64}"
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+
+    verification = json.loads(response.choices[0].message.content)
+    print(f"   Confidence: {verification.get('confidence_score', 0)}%")
+    print(f"   Issues found: {len(verification.get('issues', []))}")
+
+    # If needs refinement, do a second extraction with more focus
+    if verification.get('needs_refinement', False):
+        print("🔧 Refining text extraction...")
+
+        issues_description = "\n".join([
+            f"- {issue['description']}" for issue in verification.get('issues', [])
+        ])
+
+        refine_prompt = f"""Re-extract the text from this image with EXTRA CARE.
+
+PREVIOUS EXTRACTION HAD THESE ISSUES:
+{issues_description}
+
+PREVIOUS EXTRACTED TEXT (for reference):
+{extracted_text}
+
+Now extract the text again, fixing these issues:
+- Be more careful with formulas and special characters
+- Check for missing sections
+- Verify formatting and structure
+- Double-check numbers and technical terms
+
+Return ONLY the corrected extracted text, nothing else."""
+
+        refine_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": refine_prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+        )
+
+        refined_text = refine_response.choices[0].message.content
+        print(f"✅ Text refined: {len(refined_text)} characters")
+
+        verification['refined_text'] = refined_text
+        verification['was_refined'] = True
+    else:
+        verification['refined_text'] = extracted_text
+        verification['was_refined'] = False
+
+    return verification
+
+
+def validate_quiz_quality(course_text: str, quiz_data: dict) -> dict:
+    """
+    🔄 STEP 3: Validate quiz quality and accuracy
+    """
+
+    validation_prompt = f"""You are a quiz quality validator. Analyze this quiz and verify:
+
+ORIGINAL COURSE TEXT:
+{course_text}
+
+GENERATED QUIZ:
+{json.dumps(quiz_data, indent=2, ensure_ascii=False)}
+
+CHECK THE FOLLOWING:
+1. Are ALL questions based on FACTS from the course? (not general knowledge)
+2. Are the correct answers ACCURATE according to the course text?
+3. Are the incorrect options plausible but clearly wrong?
+4. Are the explanations clear and refer to the course?
+5. Is the difficulty level appropriate?
+6. Do the questions test actual understanding (not just memorization)?
+
+Return ONLY valid JSON in this exact format:
+{{
+  "is_valid": true or false,
+  "accuracy_score": 0-100,
+  "issues": [
+    {{
+      "question_index": 0,
+      "severity": "high/medium/low",
+      "issue": "Description of the problem",
+      "suggestion": "How to fix it"
+    }}
+  ],
+  "general_feedback": "Overall assessment"
+}}
+
+CRITICAL RULES:
+- If a question uses info NOT in the course: is_valid = false
+- If correctAnswer is wrong: is_valid = false
+- accuracy_score = percentage of questions that are perfectly accurate"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "user",
+                "content": validation_prompt
+            }
+        ],
+    )
+
+    validation_result = json.loads(response.choices[0].message.content)
+
+    print(f"🔍 Quiz Validation Score: {validation_result.get('accuracy_score', 0)}%")
+    print(f"   Issues found: {len(validation_result.get('issues', []))}")
+
+    return validation_result
+
+
+def refine_quiz(course_text: str, quiz_data: dict, validation_result: dict) -> dict:
+    """
+    🔧 STEP 4: Fix issues found in quiz validation
+    """
+
+    if validation_result.get('is_valid', False) and validation_result.get('accuracy_score', 0) >= 90:
+        print("✅ Quiz quality is excellent, no refinement needed")
+        return quiz_data
+
+    print("🔧 Refining quiz based on validation feedback...")
+
+    refine_prompt = f"""You are a quiz refinement expert. FIX the issues in this quiz.
+
+ORIGINAL COURSE TEXT:
+{course_text}
+
+CURRENT QUIZ (with issues):
+{json.dumps(quiz_data, indent=2, ensure_ascii=False)}
+
+VALIDATION ISSUES:
+{json.dumps(validation_result.get('issues', []), indent=2, ensure_ascii=False)}
+
+YOUR TASK:
+1. Fix EVERY issue mentioned
+2. Ensure ALL questions are based ONLY on the course text
+3. Verify correct answers are accurate
+4. Improve explanations to reference the course
+5. Make sure incorrect options are plausible but definitely wrong
+
+Return ONLY the CORRECTED quiz in this EXACT format:
+{{
+  "questions": [
+    {{
+      "question": "...",
+      "options": ["...", "...", "...", "..."],
+      "correctAnswer": 0,
+      "explanation": "..."
+    }}
+  ]
+}}
+
+CRITICAL: Base EVERYTHING on the course text. NO external information."""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "user",
+                "content": refine_prompt
+            }
+        ],
+    )
+
+    refined_quiz = json.loads(response.choices[0].message.content)
+    print("✅ Quiz refined successfully")
+
+    return refined_quiz
+
+
 def generate_quiz_mcq(
         course_text: str,
         num_questions: int,
         difficulty: str
-) -> str:
+) -> dict:
     """Generate MCQ quiz from course text"""
 
     difficulty_instructions = {
@@ -85,14 +346,15 @@ Le JSON doit être EXACTEMENT comme ceci:
   ]
 }}
 
-RÈGLES IMPORTANTES:
+RÈGLES CRITIQUES:
 - Exactement {num_questions} questions
 - Chaque question a EXACTEMENT 4 options
 - correctAnswer est l'index de la bonne réponse (0, 1, 2, ou 3)
 - VARIE les positions: ne mets pas toujours correctAnswer à 0
 - Les options incorrectes doivent être plausibles mais clairement fausses
-- Chaque question doit avoir une "explanation" courte
-- Base-toi UNIQUEMENT sur le contenu du cours fourni
+- Chaque question doit avoir une "explanation" courte qui CITE le cours
+- Base-toi UNIQUEMENT sur le contenu du cours fourni (pas de connaissances externes)
+- Les questions doivent être PRÉCISES et VÉRIFIABLES dans le cours
 - Pas de texte avant ou après le JSON, UNIQUEMENT le JSON
 """
 
@@ -102,69 +364,75 @@ RÈGLES IMPORTANTES:
         messages=[
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                ],
+                "content": prompt
             }
         ],
     )
 
-    print("✅ Quiz generated")
-    return response.choices[0].message.content
+    quiz_data = json.loads(response.choices[0].message.content)
+    print("✅ Initial quiz generated")
 
-
-def clean_json_text(json_text: str) -> str:
-    """Clean JSON text by removing markdown code blocks"""
-    data = re.sub(r"```json\n?", "", json_text)
-    data = re.sub(r"```\n?", "", data)
-    return data.strip()
+    return quiz_data
 
 
 def quiz_generator_from_image(
         image_base64: str,
         num_questions: int = 5,
-        difficulty: str = "medium"
+        difficulty: str = "medium",
+        enable_refinement: bool = True
 ) -> dict:
     """
-    Generate quiz from course image
+    Generate quiz from course image with COMPLETE SELF-REFINING
 
-    Args:
-        image_base64: Base64 encoded image (without data URI prefix)
-        num_questions: Number of questions to generate
-        difficulty: easy, medium, or hard
-
-    Returns:
-        dict: Quiz data with questions AND extracted text
+    Pipeline:
+    1. Extract text from image
+    2. Verify extraction accuracy → Refine if needed
+    3. Generate quiz
+    4. Validate quiz quality → Refine if needed
+    5. Return final result with metadata
     """
 
-    print(f"📸 Quiz generation started")
+    print(f"📸 Quiz generation started (Self-Refining: {'ON' if enable_refinement else 'OFF'})")
     print(f"   Parameters: {num_questions} questions, difficulty: {difficulty}")
 
     try:
-        # Step 1: Extract text from image
+        # 🔄 STEP 1: Extract text from image
+        print("\n1️⃣ Extracting text from image...")
         course_text = extract_text(image_base64)
 
         if not course_text or len(course_text.strip()) < 10:
             raise ValueError("Failed to extract text from image or text too short")
 
-        # Step 2: Generate quiz from extracted text
-        quiz_json = generate_quiz_mcq(course_text, num_questions, difficulty)
+        extraction_metadata = {
+            "initial_length": len(course_text),
+            "was_refined": False,
+            "confidence_score": 100
+        }
 
-        # Step 3: Clean JSON
-        quiz_json_clean = clean_json_text(quiz_json)
+        # 🔄 STEP 2: Verify and refine extraction (if enabled)
+        if enable_refinement:
+            print("\n2️⃣ Verifying text extraction...")
+            verification = verify_and_refine_extraction(image_base64, course_text)
 
-        # Step 4: Parse JSON
-        quiz_data = json.loads(quiz_json_clean)
+            if verification.get('was_refined', False):
+                course_text = verification['refined_text']
+                print(f"   ✅ Text was refined (confidence: {verification.get('confidence_score', 0)}%)")
 
-        # Step 5: Validate structure
+            extraction_metadata = {
+                "initial_length": extraction_metadata["initial_length"],
+                "final_length": len(course_text),
+                "was_refined": verification.get('was_refined', False),
+                "confidence_score": verification.get('confidence_score', 0),
+                "issues_found": len(verification.get('issues', []))
+            }
+
+        # 🔄 STEP 3: Generate quiz
+        print(f"\n3️⃣ Generating quiz ({num_questions} questions, {difficulty})...")
+        quiz_data = generate_quiz_mcq(course_text, num_questions, difficulty)
+
+        # Validate structure
         if "questions" not in quiz_data:
             raise ValueError("Invalid quiz format: missing 'questions' key")
-
-        if len(quiz_data["questions"]) != num_questions:
-            print(f"⚠️ Warning: Expected {num_questions} questions, got {len(quiz_data['questions'])}")
 
         # Validate each question
         for i, q in enumerate(quiz_data["questions"]):
@@ -179,17 +447,118 @@ def quiz_generator_from_image(
             if "explanation" not in q:
                 q["explanation"] = ""
 
-        # ✨ Add extracted text to result
-        quiz_data["extractedText"] = course_text
+        # 🔄 STEP 4: Validate and refine quiz (if enabled)
+        quiz_metadata = {
+            "was_refined": False,
+            "initial_score": 100,
+            "final_score": 100
+        }
 
-        print(f"✅ Quiz successfully generated: {len(quiz_data['questions'])} questions")
-        print(f"✅ Extracted text length: {len(course_text)} characters")
+        if enable_refinement:
+            print("\n4️⃣ Validating quiz quality...")
+            validation_result = validate_quiz_quality(course_text, quiz_data)
+
+            quiz_metadata["initial_score"] = validation_result.get('accuracy_score', 0)
+
+            # If validation fails or score is low, refine
+            if not validation_result.get('is_valid', False) or validation_result.get('accuracy_score', 0) < 90:
+                print("\n5️⃣ Refining quiz...")
+                quiz_data = refine_quiz(course_text, quiz_data, validation_result)
+
+                # Re-validate after refinement
+                print("\n6️⃣ Re-validating refined quiz...")
+                final_validation = validate_quiz_quality(course_text, quiz_data)
+
+                quiz_metadata["final_score"] = final_validation.get('accuracy_score', 0)
+                quiz_metadata["was_refined"] = True
+
+                print(f"   ✅ Quiz refined (score: {quiz_metadata['initial_score']}% → {quiz_metadata['final_score']}%)")
+            else:
+                quiz_metadata["final_score"] = validation_result.get('accuracy_score', 0)
+                quiz_metadata["was_refined"] = False
+                print(f"   ✅ Quiz quality is good ({quiz_metadata['final_score']}%)")
+
+        # ✨ Add metadata to result
+        quiz_data["extractedText"] = course_text
+        quiz_data["metadata"] = {
+            "extraction": extraction_metadata,
+            "quiz_quality": quiz_metadata,
+            "self_refining_enabled": enable_refinement
+        }
+
+        print(f"\n✅ FINAL RESULT:")
+        print(f"   Questions: {len(quiz_data['questions'])}")
+        print(f"   Text length: {len(course_text)} characters")
+        if enable_refinement:
+            print(f"   Text confidence: {extraction_metadata.get('confidence_score', 'N/A')}%")
+            print(f"   Quiz quality: {quiz_metadata.get('final_score', 'N/A')}%")
+            print(f"   Refinements: Text={extraction_metadata.get('was_refined', False)}, Quiz={quiz_metadata.get('was_refined', False)}")
 
         return quiz_data
 
     except json.JSONDecodeError as e:
         print(f"❌ JSON Parse Error: {e}")
         raise Exception(f"Failed to parse quiz JSON: {str(e)}")
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        raise
+
+
+def quiz_generator_from_text(
+        course_text: str,
+        num_questions: int = 5,
+        difficulty: str = "medium",
+        enable_refinement: bool = True
+) -> dict:
+    """
+    Generate quiz from course text with SELF-REFINING
+    """
+
+    print(f"📝 Quiz generation from text (Self-Refining: {'ON' if enable_refinement else 'OFF'})")
+
+    try:
+        # Generate quiz
+        print("1️⃣ Generating quiz...")
+        quiz_data = generate_quiz_mcq(course_text, num_questions, difficulty)
+
+        # Validate structure
+        if "questions" not in quiz_data:
+            raise ValueError("Invalid quiz format: missing 'questions' key")
+
+        quiz_metadata = {
+            "was_refined": False,
+            "initial_score": 100,
+            "final_score": 100
+        }
+
+        # Validate and refine (if enabled)
+        if enable_refinement:
+            print("2️⃣ Validating quiz quality...")
+            validation_result = validate_quiz_quality(course_text, quiz_data)
+
+            quiz_metadata["initial_score"] = validation_result.get('accuracy_score', 0)
+
+            if not validation_result.get('is_valid', False) or validation_result.get('accuracy_score', 0) < 90:
+                print("3️⃣ Refining quiz...")
+                quiz_data = refine_quiz(course_text, quiz_data, validation_result)
+
+                final_validation = validate_quiz_quality(course_text, quiz_data)
+                quiz_metadata["final_score"] = final_validation.get('accuracy_score', 0)
+                quiz_metadata["was_refined"] = True
+            else:
+                quiz_metadata["final_score"] = validation_result.get('accuracy_score', 0)
+
+        quiz_data["metadata"] = {
+            "quiz_quality": quiz_metadata,
+            "self_refining_enabled": enable_refinement
+        }
+
+        print(f"✅ Quiz generated: {len(quiz_data['questions'])} questions")
+        if enable_refinement:
+            print(f"   Quality score: {quiz_metadata.get('final_score', 'N/A')}%")
+
+        return quiz_data
+
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         raise
