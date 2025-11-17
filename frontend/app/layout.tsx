@@ -10,7 +10,13 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Studia - AI-Powered Learning Platform",
   description: "Automate your learning with AI. Create flashcards, generate quizzes, and study smarter with Studia.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes", // ✅ IMPORTANT
+  manifest: '/manifest.json', // ✅ Ajouté
+  themeColor: '#3b82f6',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Studia'
+  }
 };
 
 export default function RootLayout({
@@ -20,15 +26,32 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="fr" className="scroll-smooth">
+      <html lang="en" className="scroll-smooth" suppressHydrationWarning>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+          {/* PWA Meta Tags */}
+          <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         </head>
-        <body className={`${inter.className} antialiased`}>
+        <body className={`${inter.className} bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-colors`}>
           <LanguageProvider>
             {children}
           </LanguageProvider>
 
+          {/* PWA Init Script */}
+          <Script id="pwa-init" strategy="afterInteractive">
+            {`
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✅ SW registered'))
+                    .catch(err => console.error('❌ SW error:', err));
+                });
+              }
+            `}
+          </Script>
+
+          {/* Google Analytics */}
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-TCC99EXG30"
             strategy="afterInteractive"

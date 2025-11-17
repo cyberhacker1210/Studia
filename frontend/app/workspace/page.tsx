@@ -1,286 +1,379 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Camera,
   FileQuestion,
-  BrainCircuit,
+  Layers,
   BookOpen,
+  Trophy,
+  Calendar,
+  Zap,
+  TrendingUp,
   Target,
   Sparkles,
-  TrendingUp,
-  Calendar,
-  Award,
-  ChevronRight,
-  Zap,
-  Library,
-  Camera
+  ArrowRight,
+  BarChart3,
+  Clock,
+  Flame,
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+interface UserStats {
+  totalQuizzes: number;
+  totalFlashcards: number;
+  totalCourses: number;
+  averageScore: number;
+  studyStreak: number;
+  lastActivity: string;
+}
 
 export default function WorkspacePage() {
-  const features = [
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
+  const [stats, setStats] = useState<UserStats>({
+    totalQuizzes: 0,
+    totalFlashcards: 0,
+    totalCourses: 0,
+    averageScore: 0,
+    studyStreak: 0,
+    lastActivity: 'Aucune activité'
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      loadUserStats();
+    }
+  }, [isLoaded, user]);
+
+  const loadUserStats = async () => {
+    if (!user) return;
+
+    try {
+      // Quiz stats
+      const { data: quizzes } = await supabase
+        .from('quiz_history')
+        .select('score, total_questions, created_at')
+        .eq('user_id', user.id);
+
+      // Flashcard stats
+      const { data: decks } = await supabase
+        .from('flashcard_decks')
+        .select('flashcards')
+        .eq('user_id', user.id);
+
+      // Course stats
+      const { data: courses } = await supabase
+        .from('courses')
+        .select('created_at')
+        .eq('user_id', user.id);
+
+      const totalQuizzes = quizzes?.length || 0;
+      const totalFlashcards = decks?.reduce((acc, d) => acc + d.flashcards.length, 0) || 0;
+      const totalCourses = courses?.length || 0;
+
+      const averageScore = quizzes?.length
+        ? Math.round(quizzes.reduce((acc, q) => acc + (q.score / q.total_questions * 100), 0) / quizzes.length)
+        : 0;
+
+      // Last activity
+      const allDates = [
+        ...(quizzes?.map(q => q.created_at) || []),
+        ...(courses?.map(c => c.created_at) || [])
+      ].sort().reverse();
+
+      const lastActivity = allDates[0]
+        ? new Date(allDates[0]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+        : 'Aucune activité';
+
+      setStats({
+        totalQuizzes,
+        totalFlashcards,
+        totalCourses,
+        averageScore,
+        studyStreak: 0,
+        lastActivity
+      });
+
+    } catch (error) {
+      console.error('Erreur chargement stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mainFeatures = [
+    {
+      id: 'capture',
+      title: 'Capturer un Cours',
+      description: 'Photo → Texte extrait → Sauvegardé',
+      icon: Camera,
+      gradient: 'from-blue-500 via-blue-600 to-indigo-600',
+      bgGradient: 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20',
+      href: '/workspace/capture',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      badge: 'Action Principale',
+      badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    },
     {
       id: 'quiz',
       title: 'Quiz Generator',
-      description: 'Générez des quiz depuis vos photos',
+      description: 'QCM intelligents depuis vos cours',
       icon: FileQuestion,
-      bgColor: 'bg-blue-50',
-      textColor: 'text-blue-600',
+      gradient: 'from-purple-500 via-purple-600 to-pink-600',
+      bgGradient: 'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
       href: '/workspace/quiz',
-      status: 'available',
+      iconColor: 'text-purple-600 dark:text-purple-400',
       badge: 'Populaire',
-      badgeColor: 'bg-blue-100 text-blue-700'
-    },
-    {
-      id: 'courses',
-      title: 'Mes Cours',
-      description: 'Consultez vos cours sauvegardés',
-      icon: Library,
-      bgColor: 'bg-teal-50',
-      textColor: 'text-teal-600',
-      href: '/workspace/courses',
-      status: 'available',
-      badge: 'Nouveau',
-      badgeColor: 'bg-teal-100 text-teal-700'
+      badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
     },
     {
       id: 'flashcards',
       title: 'Flashcards AI',
-      description: 'Mémorisez efficacement',
-      icon: BrainCircuit,
-      bgColor: 'bg-purple-50',
-      textColor: 'text-purple-600',
+      description: 'Répétition espacée + IA',
+      icon: Layers,
+      gradient: 'from-pink-500 via-rose-600 to-red-600',
+      bgGradient: 'from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20',
       href: '/workspace/flashcards',
-      status: 'available',
+      iconColor: 'text-pink-600 dark:text-pink-400',
       badge: 'Nouveau',
-      badgeColor: 'bg-purple-100 text-purple-700'
+      badgeColor: 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300',
     },
     {
-      id: 'notes',
-      title: 'Smart Notes',
-      description: 'Notes intelligentes',
+      id: 'courses',
+      title: 'Mes Cours',
+      description: 'Bibliothèque de vos cours',
       icon: BookOpen,
-      bgColor: 'bg-green-50',
-      textColor: 'text-green-600',
-      href: '/workspace/notes',
-      status: 'coming-soon',
-      badge: 'Bientôt',
-      badgeColor: 'bg-green-100 text-green-700'
-    },
-    {
-      id: 'practice',
-      title: 'Entraînement',
-      description: 'Exercices adaptatifs',
-      icon: Target,
-      bgColor: 'bg-orange-50',
-      textColor: 'text-orange-600',
-      href: '/workspace/practice',
-      status: 'coming-soon',
-      badge: 'Bientôt',
-      badgeColor: 'bg-orange-100 text-orange-700'
-    },
-    {
-      id: 'ai-tutor',
-      title: 'Tuteur IA',
-      description: 'Assistant personnel',
-      icon: Sparkles,
-      bgColor: 'bg-pink-50',
-      textColor: 'text-pink-600',
-      href: '/workspace/tutor',
-      status: 'coming-soon',
-      badge: 'Futur',
-      badgeColor: 'bg-pink-100 text-pink-700'
+      gradient: 'from-teal-500 via-emerald-600 to-green-600',
+      bgGradient: 'from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20',
+      href: '/workspace/courses',
+      iconColor: 'text-teal-600 dark:text-teal-400',
+      badge: 'Essentiel',
+      badgeColor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
     },
   ];
 
-  const stats = [
-    { label: 'Quiz', value: '0', icon: FileQuestion, color: 'text-blue-600' },
-    { label: 'Heures', value: '0h', icon: Calendar, color: 'text-green-600' },
-    { label: 'Score', value: '0%', icon: Award, color: 'text-orange-600' },
-    { label: 'Série', value: '0j', icon: Zap, color: 'text-purple-600' }
+  const statsCards = [
+    {
+      label: 'Quiz',
+      value: stats.totalQuizzes,
+      icon: FileQuestion,
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-100 dark:bg-blue-900/30',
+      change: '+12%',
+    },
+    {
+      label: 'Score Moyen',
+      value: `${stats.averageScore}%`,
+      icon: Target,
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-100 dark:bg-green-900/30',
+      change: '+5%',
+    },
+    {
+      label: 'Cours',
+      value: stats.totalCourses,
+      icon: BookOpen,
+      color: 'text-purple-600 dark:text-purple-400',
+      bg: 'bg-purple-100 dark:bg-purple-900/30',
+      change: '+8',
+    },
+    {
+      label: 'Série',
+      value: `${stats.studyStreak}j`,
+      icon: Flame,
+      color: 'text-orange-600 dark:text-orange-400',
+      bg: 'bg-orange-100 dark:bg-orange-900/30',
+      change: 'Actif',
+    },
   ];
+
+  const quickActions = [
+    {
+      title: 'Statistiques',
+      description: 'Voir mes performances',
+      icon: BarChart3,
+      href: '/workspace/stats',
+      color: 'from-indigo-500 to-purple-500',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+    },
+    {
+      title: 'Historique Quiz',
+      description: 'Revoir mes quiz',
+      icon: Clock,
+      href: '/workspace/quiz/history',
+      color: 'from-blue-500 to-cyan-500',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+    },
+  ];
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 rounded-full"></div>
+          <div className="w-16 h-16 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin absolute top-0"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.push('/');
+    return null;
+  }
+
+  const firstName = user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Étudiant';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 pb-20">
+    <div className="min-h-screen pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
 
-        {/* Header */}
-        <div className="text-center mb-6 sm:mb-10">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-2 sm:mb-3 px-2 leading-tight">
-            Bienvenue sur Studia 👋
+        {/* Welcome Header */}
+        <div className="mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-3 animate-slide-down">
+            Bonjour, <span className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">{firstName}</span> 👋
           </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-600 px-3 leading-relaxed">
-            Votre plateforme d'apprentissage IA
+          <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 animate-fade-in">
+            Dernière activité : {stats.lastActivity}
           </p>
         </div>
 
-        {/* Capture Button - Big CTA */}
-        <div className="mb-6 sm:mb-10 px-2">
-          <Link href="/workspace/capture" className="block group">
-            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl sm:rounded-3xl shadow-xl p-5 sm:p-8 active:scale-[0.98] hover:scale-[1.01] transition-transform duration-200">
-              <div className="flex flex-col sm:flex-row items-center justify-between text-white gap-4">
-                <div className="text-center sm:text-left flex-1 w-full">
-                  <div className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-semibold mb-3 backdrop-blur-sm">
-                    ⭐ Action Principale
-                  </div>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 leading-tight">
-                    📸 Capturer un Cours
-                  </h2>
-                  <p className="text-blue-100 text-xs sm:text-sm md:text-base leading-relaxed">
-                    Photo → IA → Cours sauvegardé
-                  </p>
-                </div>
-                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm flex-shrink-0">
-                  <Camera className="text-white w-8 h-8 sm:w-10 sm:h-10" />
-                </div>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-10 px-2">
-          {stats.map((stat) => (
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-12">
+          {statsCards.map((stat, index) => (
             <div
-              key={stat.label}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-5 hover:shadow-md transition-shadow"
+              key={index}
+              className="group bg-white dark:bg-dark-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border border-gray-100 dark:border-dark-200 transform hover:scale-105 animate-scale-in"
+              style={{ animationDelay: `${index * 100}ms` }}
             >
-              <stat.icon className={`${stat.color} mb-2`} size={18} />
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 leading-none">{stat.value}</p>
-              <p className="text-[10px] sm:text-xs text-gray-600 leading-tight">{stat.label}</p>
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-transform`}>
+                  <stat.icon className={stat.color} size={20} />
+                </div>
+                <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                  {stat.change}
+                </span>
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                {stat.value}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                {stat.label}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* Features Grid */}
-        <div className="mb-6 sm:mb-10 px-2">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-4 leading-tight">
-            Fonctionnalités
+        {/* Main Features Grid */}
+        <div className="mb-8 sm:mb-12">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+            <Sparkles className="mr-3 text-yellow-500" size={28} />
+            Fonctionnalités Principales
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
-            {features.map((feature) => {
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {mainFeatures.map((feature, index) => {
               const Icon = feature.icon;
-              const isAvailable = feature.status === 'available';
-
-              const CardContent = (
-                <>
-                  <div className={`${feature.bgColor} w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center mb-3`}>
-                    <Icon className={feature.textColor} size={24} />
-                  </div>
-
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:px-3 sm:py-1 rounded-full ${feature.badgeColor}`}>
-                      {feature.badge}
-                    </span>
-                    {isAvailable && (
-                      <ChevronRight className="text-gray-400 group-hover:translate-x-1 transition-transform" size={18} />
-                    )}
-                  </div>
-
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 leading-tight">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600 text-xs sm:text-sm leading-relaxed">
-                    {feature.description}
-                  </p>
-
-                  {!isAvailable && (
-                    <div className="mt-3 text-[10px] sm:text-xs text-gray-500 flex items-center space-x-1">
-                      <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
-                      <span>Bientôt disponible</span>
-                    </div>
-                  )}
-                </>
-              );
-
-              return isAvailable ? (
+              return (
                 <Link
                   key={feature.id}
                   href={feature.href}
-                  className="group bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-5 hover:shadow-xl active:scale-[0.98] transition-all"
+                  className="group relative overflow-hidden bg-white dark:bg-dark-100 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 border border-gray-100 dark:border-dark-200"
+                  style={{ animationDelay: `${index * 150}ms` }}
                 >
-                  {CardContent}
+                  {/* Background Gradient */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${feature.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity`}></div>
+
+                  {/* Content */}
+                  <div className="relative z-10 p-6 sm:p-8">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center shadow-lg transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300`}>
+                        <Icon className="text-white" size={28} />
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${feature.badgeColor}`}>
+                        {feature.badge}
+                      </span>
+                    </div>
+
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text transition-all">
+                      {feature.title}
+                    </h3>
+
+                    <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm sm:text-base">
+                      {feature.description}
+                    </p>
+
+                    <div className="flex items-center text-blue-600 dark:text-blue-400 font-semibold group-hover:translate-x-2 transition-transform">
+                      <span className="mr-2">Accéder</span>
+                      <ArrowRight size={20} />
+                    </div>
+                  </div>
+
+                  {/* Animated Border */}
+                  <div className="absolute inset-0 rounded-3xl border-2 border-transparent group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-all"></div>
                 </Link>
-              ) : (
-                <div
-                  key={feature.id}
-                  className="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-5 opacity-60"
-                >
-                  {CardContent}
-                </div>
               );
             })}
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-2 gap-3 sm:gap-5 mb-6 sm:mb-10 px-2">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-xl p-5 sm:p-6 text-white">
-            <div className="mb-4">
-              <h3 className="text-lg sm:text-xl font-bold mb-1.5 leading-tight">
-                Prêt ? 🚀
-              </h3>
-              <p className="text-blue-100 text-xs sm:text-sm leading-relaxed">
-                Quiz en 1 minute !
-              </p>
-            </div>
-            <Link
-              href="/workspace/quiz"
-              className="block w-full bg-white text-blue-600 px-5 py-3 rounded-xl font-bold active:bg-blue-50 transition-all shadow-lg flex items-center justify-center space-x-2 text-sm sm:text-base"
-            >
-              <FileQuestion size={18} />
-              <span>Créer un Quiz</span>
-              <ChevronRight size={18} />
-            </Link>
-          </div>
+        <div className="mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+            <Zap className="mr-3 text-yellow-500" size={28} />
+            Actions Rapides
+          </h2>
 
-          <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl shadow-xl p-5 sm:p-6 text-white">
-            <div className="mb-4">
-              <h3 className="text-lg sm:text-xl font-bold mb-1.5 leading-tight">
-                Vos cours 📚
-              </h3>
-              <p className="text-teal-100 text-xs sm:text-sm leading-relaxed">
-                Textes extraits
-              </p>
-            </div>
-            <Link
-              href="/workspace/courses"
-              className="block w-full bg-white text-teal-600 px-5 py-3 rounded-xl font-bold active:bg-teal-50 transition-all shadow-lg flex items-center justify-center space-x-2 text-sm sm:text-base"
-            >
-              <Library size={18} />
-              <span>Mes Cours</span>
-              <ChevronRight size={18} />
-            </Link>
+          <div className="grid sm:grid-cols-2 gap-6">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={index}
+                  href={action.href}
+                  className="group bg-white dark:bg-dark-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 dark:border-dark-200 transform hover:scale-105"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center shadow-md`}>
+                      <Icon className="text-white" size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                        {action.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {action.description}
+                      </p>
+                    </div>
+                    <ArrowRight className={`${action.iconColor} group-hover:translate-x-2 transition-transform`} size={20} />
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
 
-        {/* Tips */}
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 sm:p-6 mx-2">
-          <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 flex items-center space-x-2">
-            <Sparkles className="text-blue-600" size={20} />
-            <span>💡 Conseils</span>
-          </h3>
-          <ul className="space-y-2 text-gray-700 text-xs sm:text-sm leading-relaxed">
-            <li className="flex items-start space-x-2">
-              <span className="text-blue-600 font-bold flex-shrink-0">1.</span>
-              <span>Photos claires et bien éclairées</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-blue-600 font-bold flex-shrink-0">2.</span>
-              <span>Texte auto-extrait et sauvegardé</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-blue-600 font-bold flex-shrink-0">3.</span>
-              <span>Quiz et flashcards à la demande</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-blue-600 font-bold flex-shrink-0">4.</span>
-              <span>Répétition espacée intelligente</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-blue-600 font-bold flex-shrink-0">5.</span>
-              <span>Pratique régulière = progression</span>
-            </li>
-          </ul>
+        {/* Tips Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 rounded-3xl shadow-2xl p-6 sm:p-8">
+          <div className="flex items-start space-x-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+              <TrendingUp className="text-white" size={24} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">
+                💡 Conseil du Jour
+              </h3>
+              <p className="text-blue-100 text-sm sm:text-base leading-relaxed">
+                La répétition espacée est la méthode la plus efficace pour mémoriser.
+                Révisez vos flashcards régulièrement pour maximiser votre rétention !
+              </p>
+            </div>
+          </div>
         </div>
 
       </div>
