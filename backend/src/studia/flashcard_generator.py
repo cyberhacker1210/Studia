@@ -27,7 +27,7 @@ def validate_flashcards_quality(course_text: str, flashcards_data: dict) -> dict
 
     print("🔍 Validating flashcards quality...")
 
-    validation_prompt = f"""You are a flashcard quality validator. Analyze these flashcards.
+    validation_prompt = f"""You are a flashcard quality validator. Analyze these flashcards and return your analysis in JSON format.
 
 ORIGINAL COURSE TEXT:
 {course_text}
@@ -63,7 +63,8 @@ CRITICAL RULES:
 - If a flashcard uses info NOT in the course: is_valid = false, high severity
 - If an answer is incomplete or wrong: is_valid = false, high severity
 - quality_score = percentage of flashcards that are perfectly accurate and useful
-- List ALL issues found, even small ones"""
+- List ALL issues found, even small ones
+- Return ONLY valid JSON"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -95,7 +96,7 @@ def refine_flashcards(course_text: str, flashcards_data: dict, validation_result
 
     print("🔧 Refining flashcards based on validation feedback...")
 
-    refine_prompt = f"""You are a flashcard refinement expert. FIX the issues in these flashcards.
+    refine_prompt = f"""You are a flashcard refinement expert. FIX the issues in these flashcards and return valid JSON.
 
 ORIGINAL COURSE TEXT:
 {course_text}
@@ -113,7 +114,7 @@ YOUR TASK:
 4. Remove duplicates if any
 5. Make sure "front" is clear and "back" is comprehensive but concise
 
-Return ONLY the CORRECTED flashcards in this EXACT format:
+Return ONLY the CORRECTED flashcards in this EXACT JSON format:
 {{
   "flashcards": [
     {{
@@ -131,7 +132,8 @@ RULES:
 - Do NOT add external information
 - Make answers specific and complete
 - "front" should be short (1 sentence max)
-- "back" should be concise but complete (2-3 sentences)"""
+- "back" should be concise but complete (2-3 sentences)
+- Return ONLY valid JSON, nothing else"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -154,7 +156,7 @@ def generate_flashcards(
         course_text: str,
         num_cards: int = 10,
         difficulty: str = "medium",
-        enable_refinement: bool = True  # ✨ NEW: Toggle self-refining
+        enable_refinement: bool = True
 ) -> dict:
     """
     Generate flashcards from course text with SELF-REFINING

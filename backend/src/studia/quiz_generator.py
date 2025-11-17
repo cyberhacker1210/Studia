@@ -60,19 +60,11 @@ Return ONLY the extracted text, nothing else."""
 def verify_and_refine_extraction(image_base64: str, extracted_text: str) -> dict:
     """
     🔄 STEP 2: Verify extraction accuracy and refine if needed
-
-    Returns:
-    {
-        "is_accurate": bool,
-        "confidence_score": 0-100,
-        "issues": [...],
-        "refined_text": str (corrected text if needed)
-    }
     """
 
     print("🔍 Verifying text extraction accuracy...")
 
-    verification_prompt = f"""You are a text extraction quality validator.
+    verification_prompt = f"""You are a text extraction quality validator. Return your analysis in JSON format.
 
 Compare the EXTRACTED TEXT with the ORIGINAL IMAGE and check:
 
@@ -101,7 +93,8 @@ Return ONLY valid JSON:
   "general_assessment": "Brief overall evaluation"
 }}
 
-If confidence_score < 85%, set needs_refinement = true"""
+If confidence_score < 85%, set needs_refinement = true
+Return ONLY valid JSON, nothing else."""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -191,7 +184,7 @@ def validate_quiz_quality(course_text: str, quiz_data: dict) -> dict:
     🔄 STEP 3: Validate quiz quality and accuracy
     """
 
-    validation_prompt = f"""You are a quiz quality validator. Analyze this quiz and verify:
+    validation_prompt = f"""You are a quiz quality validator. Analyze this quiz and return your analysis in JSON format.
 
 ORIGINAL COURSE TEXT:
 {course_text}
@@ -225,7 +218,8 @@ Return ONLY valid JSON in this exact format:
 CRITICAL RULES:
 - If a question uses info NOT in the course: is_valid = false
 - If correctAnswer is wrong: is_valid = false
-- accuracy_score = percentage of questions that are perfectly accurate"""
+- accuracy_score = percentage of questions that are perfectly accurate
+- Return ONLY valid JSON"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -257,7 +251,7 @@ def refine_quiz(course_text: str, quiz_data: dict, validation_result: dict) -> d
 
     print("🔧 Refining quiz based on validation feedback...")
 
-    refine_prompt = f"""You are a quiz refinement expert. FIX the issues in this quiz.
+    refine_prompt = f"""You are a quiz refinement expert. FIX the issues in this quiz and return valid JSON.
 
 ORIGINAL COURSE TEXT:
 {course_text}
@@ -275,7 +269,7 @@ YOUR TASK:
 4. Improve explanations to reference the course
 5. Make sure incorrect options are plausible but definitely wrong
 
-Return ONLY the CORRECTED quiz in this EXACT format:
+Return ONLY the CORRECTED quiz in this EXACT JSON format:
 {{
   "questions": [
     {{
@@ -287,7 +281,7 @@ Return ONLY the CORRECTED quiz in this EXACT format:
   ]
 }}
 
-CRITICAL: Base EVERYTHING on the course text. NO external information."""
+CRITICAL: Base EVERYTHING on the course text. NO external information. Return ONLY valid JSON."""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -383,13 +377,6 @@ def quiz_generator_from_image(
 ) -> dict:
     """
     Generate quiz from course image with COMPLETE SELF-REFINING
-
-    Pipeline:
-    1. Extract text from image
-    2. Verify extraction accuracy → Refine if needed
-    3. Generate quiz
-    4. Validate quiz quality → Refine if needed
-    5. Return final result with metadata
     """
 
     print(f"📸 Quiz generation started (Self-Refining: {'ON' if enable_refinement else 'OFF'})")
