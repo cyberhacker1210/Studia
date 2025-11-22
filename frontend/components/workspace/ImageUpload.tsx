@@ -90,7 +90,7 @@ export default function ImageUpload({ onImageSelected, selectedImage, onClear }:
         >
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl p-12 transition-all duration-300 shadow-2xl hover:shadow-blue-500/50 transform hover:scale-105">
             <div className="w-24 h-24 mx-auto mb-6 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <Camera size={48} className="text-white" />
+              <Camera size={48} className="text-gray-900" />
             </div>
 
             <h3 className="text-2xl md:text-3xl font-bold mb-2">

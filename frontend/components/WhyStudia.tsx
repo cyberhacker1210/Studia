@@ -49,7 +49,7 @@ export default function WhyStudia() {
               {benefits.slice(0, 3).map((benefit, index) => (
                 <div key={index} className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Check size={16} className="text-white" />
+                    <Check size={16} className="text-gray-900" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900">
@@ -73,7 +73,7 @@ export default function WhyStudia() {
               >
                 <div className="flex items-start space-x-3">
                   <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Check size={16} className="text-white" />
+                    <Check size={16} className="text-gray-900" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-1">

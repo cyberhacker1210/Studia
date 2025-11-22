@@ -33,7 +33,6 @@ export default function CTA() {
       setStatus('success');
       setEmail('');
 
-      // Reset after 5 seconds
       setTimeout(() => {
         setStatus('idle');
       }, 5000);
@@ -41,7 +40,6 @@ export default function CTA() {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Failed to join waitlist');
 
-      // Reset error after 5 seconds
       setTimeout(() => {
         setStatus('idle');
         setErrorMessage('');

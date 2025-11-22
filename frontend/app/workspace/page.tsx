@@ -220,7 +220,7 @@ export default function WorkspacePage() {
     return null;
   }
 
-  const firstName = user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Étudiant';
+  const firstName = user.firstName || user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Étudiant';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-20">
@@ -228,10 +228,10 @@ export default function WorkspacePage() {
 
         {/* Welcome Header */}
         <div className="mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 animate-slide-down">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3">
             Bonjour, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{firstName}</span> 👋
           </h1>
-          <p className="text-base sm:text-lg text-gray-600 animate-fade-in">
+          <p className="text-base sm:text-lg text-gray-600">
             Dernière activité : {stats.lastActivity}
           </p>
         </div>
@@ -241,8 +241,7 @@ export default function WorkspacePage() {
           {statsCards.map((stat, index) => (
             <div
               key={index}
-              className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border border-gray-100 transform hover:scale-105 animate-scale-in"
-              style={{ animationDelay: `${index * 100}ms` }}
+              className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border border-gray-100 transform hover:scale-105"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-transform`}>
@@ -269,15 +268,14 @@ export default function WorkspacePage() {
             Fonctionnalités Principales
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            {mainFeatures.map((feature, index) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {mainFeatures.map((feature) => {
               const Icon = feature.icon;
               return (
                 <Link
                   key={feature.id}
                   href={feature.href}
                   className="group relative overflow-hidden bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 border border-gray-100"
-                  style={{ animationDelay: `${index * 150}ms` }}
                 >
                   {/* Background Gradient */}
                   <div className={`absolute inset-0 bg-gradient-to-br ${feature.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity`}></div>
@@ -306,9 +304,6 @@ export default function WorkspacePage() {
                       <ArrowRight size={20} />
                     </div>
                   </div>
-
-                  {/* Animated Border */}
-                  <div className="absolute inset-0 rounded-3xl border-2 border-transparent group-hover:border-blue-500 transition-all"></div>
                 </Link>
               );
             })}

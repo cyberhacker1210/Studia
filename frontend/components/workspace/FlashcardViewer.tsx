@@ -133,7 +133,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
     }
 
     const toReviewIndices = Array.from(toReviewCards).sort((a, b) => a - b);
-    
+
     console.log('🔄 Mode révision activé');
     console.log('📋 Cartes à revoir:', toReviewIndices);
 
@@ -201,7 +201,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
             {toReviewCount > 0 && (
               <button
                 onClick={handleReviewAgain}
-                className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 active:scale-95 transition-all shadow-lg touch-manipulation"
+                className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold active:scale-95 transition-all shadow-lg touch-manipulation"
               >
                 🔄 Réviser les {toReviewCount} cartes à revoir
               </button>
@@ -232,7 +232,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       {/* Mode Indicator */}
       {reviewMode && (
         <div className="mb-4 text-center">
-          <span className="inline-block px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm">
+          <span className="inline-block px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm border border-orange-200">
             🔄 Mode Révision • {totalCards} cartes à revoir
           </span>
         </div>
@@ -275,7 +275,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
 
       {/* Category Badge */}
       <div className="mb-4 text-center">
-        <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full">
+        <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full border border-purple-200">
           {currentCard.category}
         </span>
       </div>
@@ -378,10 +378,10 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       {/* Indicator */}
       {reviewedCards.has(activeIndices[currentIndex]) && (
         <div className="mt-4 text-center">
-          <span className={`inline-block px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold ${
+          <span className={`inline-block px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold border ${
             knownCards.has(activeIndices[currentIndex])
-              ? 'bg-green-100 text-green-700'
-              : 'bg-orange-100 text-orange-700'
+              ? 'bg-green-100 text-green-700 border-green-200'
+              : 'bg-orange-100 text-orange-700 border-orange-200'
           }`}>
             {knownCards.has(activeIndices[currentIndex]) ? '✅ Marquée comme connue' : '🔄 À revoir'}
           </span>

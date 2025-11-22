@@ -24,7 +24,7 @@ export default function About() {
           {/* Card 1 */}
           <div className="group bg-gradient-to-br from-primary-50 to-white p-8 rounded-2xl hover:shadow-xl transition-all duration-300 border border-primary-100">
             <div className="w-14 h-14 bg-primary-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <BookOpen className="text-white" size={28} />
+              <BookOpen className="text-gray-900" size={28} />
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
               {t.about.mission}
@@ -37,7 +37,7 @@ export default function About() {
           {/* Card 2 */}
           <div className="group bg-gradient-to-br from-primary-50 to-white p-8 rounded-2xl hover:shadow-xl transition-all duration-300 border border-primary-100">
             <div className="w-14 h-14 bg-primary-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Target className="text-white" size={28} />
+              <Target className="text-gray-900" size={28} />
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
               {t.about.vision}
@@ -50,7 +50,7 @@ export default function About() {
           {/* Card 3 */}
           <div className="group bg-gradient-to-br from-primary-50 to-white p-8 rounded-2xl hover:shadow-xl transition-all duration-300 border border-primary-100">
             <div className="w-14 h-14 bg-primary-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Zap className="text-white" size={28} />
+              <Zap className="text-gray-900" size={28} />
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">
               {t.about.approach}

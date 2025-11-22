@@ -22,7 +22,7 @@ export default function QuizHubPage() {
         {/* Header - Minimaliste */}
         <div className="text-center mb-6 sm:mb-10 px-2">
           <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-lg mb-3 sm:mb-4">
-            <FileQuestion className="text-white" size={28} />
+            <FileQuestion className="text-gray-900" size={28} />
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">
             Quiz Generator 🎯
@@ -46,7 +46,7 @@ export default function QuizHubPage() {
             <div className="relative z-10">
               {/* Icon */}
               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform shadow-md">
-                <Sparkles className="text-white" size={24} />
+                <Sparkles className="text-gray-900" size={24} />
               </div>
 
               {/* Badge */}
@@ -85,7 +85,7 @@ export default function QuizHubPage() {
             <div className="relative z-10">
               {/* Icon */}
               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform shadow-md">
-                <History className="text-white" size={24} />
+                <History className="text-gray-900" size={24} />
               </div>
 
               {/* Badge */}

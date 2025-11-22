@@ -30,7 +30,6 @@ export default function QuizDisplay({ quiz, onComplete }: QuizDisplayProps) {
       onComplete(selectedAnswers);
     } else {
       setCurrentQuestion(currentQuestion + 1);
-      // Scroll to top sur mobile
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -42,7 +41,7 @@ export default function QuizDisplay({ quiz, onComplete }: QuizDisplayProps) {
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-      {/* Progress Bar - Mobile Optimized */}
+      {/* Progress Bar */}
       <div className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm sm:text-base font-semibold text-gray-700">
@@ -62,13 +61,13 @@ export default function QuizDisplay({ quiz, onComplete }: QuizDisplayProps) {
         </div>
       </div>
 
-      {/* Question - Mobile Optimized */}
+      {/* Question */}
       <div className="p-4 sm:p-6 md:p-8">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-6 sm:mb-8 leading-snug">
           {question.question}
         </h2>
 
-        {/* Options - Touch Optimized */}
+        {/* Options */}
         <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
           {question.options.map((option, index) => (
             <button
@@ -104,7 +103,7 @@ export default function QuizDisplay({ quiz, onComplete }: QuizDisplayProps) {
           ))}
         </div>
 
-        {/* Navigation - Mobile Sticky Bottom */}
+        {/* Navigation */}
         <div className="flex items-center justify-between gap-3">
           <button
             onClick={handlePrevious}

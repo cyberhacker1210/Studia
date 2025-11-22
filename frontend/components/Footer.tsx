@@ -27,13 +27,13 @@ export default function Footer() {
                 href="https://github.com/cyberhacker1210"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
+                className="w-10 h-10 bg-gray-800 text-gray-300 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
               >
                 <Github size={20} />
               </Link>
               <Link
                 href="mailto:contact@studia.com"
-                className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
+                className="w-10 h-10 bg-gray-800 text-gray-300 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
               >
                 <Mail size={20} />
               </Link>

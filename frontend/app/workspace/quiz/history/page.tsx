@@ -1,39 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, Calendar, Award, BookOpen, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Calendar, Trophy, BookOpen, Loader2 } from 'lucide-react';
 import QuizHistoryCard from '@/components/workspace/QuizHistoryCard';
 
 interface QuizHistory {
   id: number;
-  quiz_data: any;
+  quiz_id: string;
   score: number;
   total_questions: number;
+  difficulty: string;
+  source: string;
   created_at: string;
+  answers: number[];
 }
 
 export default function QuizHistoryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
+  const [history, setHistory] = useState<QuizHistory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoaded && user) {
-      loadQuizHistory();
+      loadHistory();
     }
   }, [isLoaded, user]);
 
-  const loadQuizHistory = async () => {
+  const loadHistory = async () => {
     if (!user) return;
 
     try {
-      setLoading(true);
-
       const { data, error } = await supabase
         .from('quiz_history')
         .select('*')
@@ -42,17 +42,16 @@ export default function QuizHistoryPage() {
 
       if (error) throw error;
 
-      setQuizHistory(data || []);
-    } catch (err: any) {
-      console.error('Erreur chargement historique:', err);
-      setError(err.message);
+      setHistory(data || []);
+    } catch (err) {
+      console.error('Erreur:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce quiz ?')) return;
+    if (!confirm('Supprimer ce quiz ?')) return;
 
     try {
       const { error } = await supabase
@@ -62,19 +61,17 @@ export default function QuizHistoryPage() {
 
       if (error) throw error;
 
-      loadQuizHistory();
-    } catch (err: any) {
-      alert(`Erreur: ${err.message}`);
+      setHistory(history.filter(q => q.id !== id));
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert('Erreur lors de la suppression');
     }
   };
 
   if (!isLoaded || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="text-center">
-          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Chargement...</p>
-        </div>
+        <Loader2 className="animate-spin h-12 w-12 text-blue-600" />
       </div>
     );
   }
@@ -84,105 +81,82 @@ export default function QuizHistoryPage() {
     return null;
   }
 
-  const totalQuizzes = quizHistory.length;
-  const averageScore = totalQuizzes > 0
-    ? Math.round(quizHistory.reduce((acc, q) => acc + (q.score / q.total_questions * 100), 0) / totalQuizzes)
+  const totalQuizzes = history.length;
+  const averageScore = history.length > 0
+    ? Math.round(history.reduce((acc, q) => acc + (q.score / q.total_questions * 100), 0) / history.length)
     : 0;
-  const totalQuestions = quizHistory.reduce((acc, q) => acc + q.total_questions, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push('/workspace/quiz')}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
-          >
-            <ArrowLeft size={20} className="mr-2" />
-            Retour
-          </button>
+      <div className="max-w-5xl mx-auto">
+        <button
+          onClick={() => router.push('/workspace')}
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+        >
+          <ArrowLeft size={20} className="mr-2" />
+          Retour au Workspace
+        </button>
 
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            📚 Historique des Quiz
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            📊 Historique des Quiz
           </h1>
-          <p className="text-gray-600 text-lg">
-            Consultez vos quiz précédents et vos performances
+          <p className="text-lg text-gray-600">
+            Retrouvez tous vos quiz passés et vos performances
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-blue-600">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Quiz Complétés</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{totalQuizzes}</p>
+        {/* Stats Summary */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
+                <BookOpen size={28} className="text-blue-600" />
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <BookOpen size={24} className="text-blue-600" />
+              <div>
+                <p className="text-3xl font-bold text-gray-900">{totalQuizzes}</p>
+                <p className="text-sm text-gray-600">Quiz complétés</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-green-600">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
+                <Award size={24} className="text-green-600" />
+              </div>
               <div>
-                <p className="text-gray-600 text-sm font-medium">Score Moyen</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{averageScore}%</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Trophy size={24} className="text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-purple-600">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Questions Totales</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{totalQuestions}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <Calendar size={24} className="text-purple-600" />
+                <p className="text-3xl font-bold text-gray-900">{averageScore}%</p>
+                <p className="text-sm text-gray-600">Score moyen</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-600">❌ {error}</p>
-          </div>
-        )}
-
-        {/* Quiz List */}
-        {totalQuizzes === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <BookOpen size={48} className="text-gray-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Aucun quiz sauvegardé
+        {/* History List */}
+        {history.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-xl p-12 text-center border border-gray-100">
+            <BookOpen size={64} className="mx-auto text-gray-300 mb-4" />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Aucun quiz encore
             </h3>
             <p className="text-gray-600 mb-6">
-              Générez votre premier quiz pour commencer !
+              Commencez par générer un quiz depuis un cours !
             </p>
             <button
-              onClick={() => router.push('/workspace/quiz/generate')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all"
+              onClick={() => router.push('/workspace')}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
             >
-              Générer un Quiz
+              Aller au Workspace
             </button>
           </div>
         ) : (
           <div className="space-y-4">
-            {quizHistory.map((quiz) => (
+            {history.map((quiz) => (
               <QuizHistoryCard
                 key={quiz.id}
                 quiz={quiz}
-                onDelete={() => handleDelete(quiz.id)}
+                onDelete={handleDelete}
               />
             ))}
           </div>
