@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Studia - AI-Powered Learning Platform",
   description: "Automate your learning with AI. Create flashcards, generate quizzes, and study smarter with Studia.",
-  manifest: '/manifest.json', // ✅ Ajouté
+  manifest: '/manifest.json',
   themeColor: '#3b82f6',
   appleWebApp: {
     capable: true,
@@ -26,14 +26,14 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+      <html lang="en" className="scroll-smooth">
         <head>
           {/* PWA Meta Tags */}
           <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         </head>
-        <body className={`${inter.className} bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-colors`}>
+        <body className={`${inter.className} bg-white text-gray-900`}>
           <LanguageProvider>
             {children}
           </LanguageProvider>

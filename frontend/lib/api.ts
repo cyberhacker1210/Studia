@@ -1,28 +1,30 @@
-// API Configuration
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+// Configuration de l'API
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-console.log('🔗 API_BASE_URL:', API_BASE_URL);
+console.log('🔧 API Configuration:', {
+  API_BASE_URL,
+  env: process.env.NEXT_PUBLIC_API_URL
+});
 
 // ============================================
-// INTERFACES
+// Types
 // ============================================
-
-export interface Question {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-}
 
 export interface Quiz {
   id: string;
   source: string;
   difficulty: string;
-  questions: Question[];
+  questions: QuizQuestion[];
   createdAt: string;
-  extractedText?: string;
-  totalImages?: number;
+  extractedText: string;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
 }
 
 export interface Flashcard {
@@ -38,284 +40,270 @@ export interface FlashcardDeck {
   createdAt: string;
 }
 
+export interface ExtractedPage {
+  pageNumber: number;
+  text: string;
+  wordCount: number;
+}
+
+export interface ExtractTextResult {
+  totalImages: number;
+  pagesExtracted: number;
+  extractedText: string;
+  pages: ExtractedPage[];
+}
+
 // ============================================
-// QUIZ API
+// Helper: Better error handling
 // ============================================
 
-/**
- * Générer un quiz depuis une image de cours
- */
-export async function generateQuizFromImage(
-  imageData: string,
-  numQuestions: number = 5,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
-): Promise<Quiz> {
-  const url = `${API_BASE_URL}/api/quiz/generate-from-image`;
-  console.log('📡 Requête Quiz (image) vers:', url);
+async function handleApiResponse(response: Response): Promise<any> {
+  const contentType = response.headers.get('content-type');
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      image: imageData,
-      num_questions: numQuestions,
-      difficulty,
-    }),
-  });
-
-  console.log('📊 Response status:', response.status);
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Not Found' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de la génération du quiz');
+  // Si pas de content-type ou pas JSON
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await response.text();
+    console.error('❌ Non-JSON Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType,
+      body: text.substring(0, 500)
+    });
+    throw new Error(`Erreur serveur (${response.status}): Réponse non-JSON`);
   }
 
-  const data = await response.json();
-  console.log('✅ Quiz reçu:', {
-    id: data.id,
-    questions: data.questions?.length || 0,
-    hasExtractedText: !!data.extractedText,
-    extractedTextLength: data.extractedText?.length || 0
-  });
+  // Tenter de parser le JSON
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    console.error('❌ JSON Parse Error:', e);
+    throw new Error('Impossible de parser la réponse du serveur');
+  }
+
+  // Si erreur HTTP
+  if (!response.ok) {
+    console.error('❌ API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      data
+    });
+
+    const errorMessage = data?.detail || data?.message || `Erreur HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
 
   return data;
 }
 
+// ============================================
+// API Functions
+// ============================================
+
 /**
- * Générer un quiz depuis le texte du cours
+ * Extract text from multiple images
+ */
+export async function extractTextFromMultipleImages(
+  images: string[]
+): Promise<ExtractTextResult> {
+  console.log('🌐 API Call: Extract text from images', {
+    count: images.length,
+    url: `${API_BASE_URL}/api/extract-text`,
+    firstImagePreview: images[0]?.substring(0, 50) + '...'
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/extract-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        images: images,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Extract text success', {
+      pagesExtracted: data.pagesExtracted,
+      totalChars: data.extractedText?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/extract-text`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate quiz from text
  */
 export async function generateQuizFromText(
   courseText: string,
   numQuestions: number = 5,
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<Quiz> {
-  const url = `${API_BASE_URL}/api/quiz/generate-from-text`;
-  console.log('📡 Requête Quiz (texte) vers:', url);
-  console.log('📝 Texte length:', courseText.length, 'chars');
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      course_text: courseText,
-      num_questions: numQuestions,
-      difficulty,
-    }),
+  console.log('🌐 API Call: Generate quiz from text', {
+    numQuestions,
+    difficulty,
+    textLength: courseText.length,
+    url: `${API_BASE_URL}/api/quiz/generate-from-text`
   });
 
-  console.log('📊 Response status:', response.status);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course_text: courseText,
+        num_questions: numQuestions,
+        difficulty: difficulty,
+      }),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de la génération du quiz');
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Quiz generated', {
+      questionsCount: data.questions?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/quiz/generate-from-text`
+    });
+    throw error;
   }
-
-  const data = await response.json();
-  console.log('✅ Quiz reçu:', {
-    id: data.id,
-    questions: data.questions?.length || 0,
-    source: data.source
-  });
-
-  return data;
 }
 
 /**
- * Générer un quiz depuis plusieurs images
+ * Generate quiz from image
  */
-export async function generateQuizFromMultipleImages(
-  images: string[],
+export async function generateQuizFromImage(
+  image: string,
   numQuestions: number = 5,
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<Quiz> {
-  const url = `${API_BASE_URL}/api/quiz/generate-from-images`;
-  console.log('📡 Requête Quiz (multi-images) vers:', url);
-  console.log('📸 Nombre d\'images:', images.length);
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      images,
-      num_questions: numQuestions,
-      difficulty,
-    }),
+  console.log('🌐 API Call: Generate quiz from image', {
+    numQuestions,
+    difficulty,
+    imagePreview: image.substring(0, 50) + '...',
+    url: `${API_BASE_URL}/api/quiz/generate-from-image`
   });
 
-  console.log('📊 Response status:', response.status);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: image,
+        num_questions: numQuestions,
+        difficulty: difficulty,
+      }),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de la génération du quiz');
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Quiz generated from image', {
+      questionsCount: data.questions?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/quiz/generate-from-image`
+    });
+    throw error;
   }
-
-  const data = await response.json();
-  console.log('✅ Quiz généré depuis', data.totalImages, 'images');
-
-  return data;
 }
 
-// ============================================
-// FLASHCARDS API
-// ============================================
-
 /**
- * Générer des flashcards depuis le texte du cours
+ * Generate flashcards from text
  */
 export async function generateFlashcards(
   courseText: string,
   numCards: number = 10,
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<FlashcardDeck> {
-  const url = `${API_BASE_URL}/api/flashcards/generate`;
-  console.log('📡 Requête Flashcards vers:', url);
-  console.log('📝 Texte length:', courseText.length, 'chars');
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      course_text: courseText,
-      num_cards: numCards,
-      difficulty,
-    }),
+  console.log('🌐 API Call: Generate flashcards', {
+    numCards,
+    difficulty,
+    textLength: courseText.length,
+    url: `${API_BASE_URL}/api/flashcards/generate`
   });
 
-  console.log('📊 Response status:', response.status);
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de la génération des flashcards');
-  }
-
-  const data = await response.json();
-  console.log('✅ Flashcards reçues:', {
-    id: data.id,
-    flashcards: data.flashcards?.length || 0
-  });
-
-  return data;
-}
-
-// ============================================
-// COURSES / OCR API
-// ============================================
-
-/**
- * Extraire le texte d'une seule image
- */
-export async function extractTextFromImage(imageData: string): Promise<string> {
-  const url = `${API_BASE_URL}/api/courses/extract-text`;
-  console.log('📡 Extraction texte (1 image) vers:', url);
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ image: imageData }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de l\'extraction du texte');
-  }
-
-  const data = await response.json();
-  console.log('✅ Texte extrait:', data.extracted_text?.length || 0, 'caractères');
-
-  return data.extracted_text;
-}
-
-/**
- * Extraire le texte de plusieurs images
- */
-export async function extractTextFromMultipleImages(
-  images: string[]
-): Promise<{
-  extractedText: string;
-  totalImages: number;
-  pagesExtracted: number;
-  totalCharacters: number;
-}> {
-  const url = `${API_BASE_URL}/api/courses/extract-multiple-images`;
-  console.log('📡 Extraction texte (multi-images) vers:', url);
-  console.log('📸 Nombre d\'images:', images.length);
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ images }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
-    console.error('❌ API Error:', error);
-    throw new Error(error.detail || 'Erreur lors de l\'extraction multiple');
-  }
-
-  const data = await response.json();
-  console.log('✅ Extraction terminée:', {
-    totalImages: data.total_images,
-    pagesExtracted: data.pages_extracted,
-    totalCharacters: data.total_characters
-  });
-
-  return {
-    extractedText: data.extracted_text,
-    totalImages: data.total_images,
-    pagesExtracted: data.pages_extracted,
-    totalCharacters: data.total_characters,
-  };
-}
-
-// ============================================
-// HEALTH CHECK
-// ============================================
-
-/**
- * Vérifier que l'API est en ligne
- */
-export async function checkAPIHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health`);
-    return response.ok;
-  } catch (error) {
-    console.error('❌ API Health Check Failed:', error);
+    const response = await fetch(`${API_BASE_URL}/api/flashcards/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course_text: courseText,
+        num_cards: numCards,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Flashcards generated', {
+      cardsCount: data.flashcards?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/flashcards/generate`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Check API health
+ */
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    console.log('🏥 Checking API health:', `${API_BASE_URL}/api/health`);
+
+    const response = await fetch(`${API_BASE_URL}/api/health`, {
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ API is healthy:', data);
+      return true;
+    } else {
+      console.error('❌ API health check failed:', response.status);
+      return false;
+    }
+  } catch (error: any) {
+    console.error('❌ API Health Check Failed:', {
+      message: error.message,
+      url: `${API_BASE_URL}/api/health`
+    });
     return false;
   }
-}
-
-/**
- * Obtenir les informations de l'API
- */
-export async function getAPIInfo(): Promise<{
-  status: string;
-  version: string;
-  endpoints: string[];
-}> {
-  const url = `${API_BASE_URL}/api/info`;
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error('Impossible de récupérer les informations de l\'API');
-  }
-
-  return await response.json();
 }

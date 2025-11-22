@@ -9,7 +9,7 @@ from datetime import datetime
 import uuid
 import traceback
 
-from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text
+from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
 
 app = FastAPI(
@@ -51,6 +51,10 @@ class FlashcardGenerateRequest(BaseModel):
     difficulty: Literal["easy", "medium", "hard"] = "medium"
 
 
+class ExtractTextRequest(BaseModel):
+    images: List[str]
+
+
 class QuizQuestion(BaseModel):
     id: int
     question: str
@@ -66,6 +70,12 @@ class Flashcard(BaseModel):
     difficulty: str
 
 
+class ExtractedPage(BaseModel):
+    pageNumber: int
+    text: str
+    wordCount: int
+
+
 class QuizResponse(BaseModel):
     id: str
     source: str
@@ -79,6 +89,13 @@ class FlashcardResponse(BaseModel):
     id: str
     flashcards: List[Flashcard]
     createdAt: str
+
+
+class ExtractTextResponse(BaseModel):
+    totalImages: int
+    pagesExtracted: int
+    extractedText: str
+    pages: List[ExtractedPage]
 
 
 # ============================================
@@ -104,6 +121,7 @@ def root():
         "status": "running",
         "endpoints": [
             "/api/health",
+            "/api/extract-text",
             "/api/quiz/generate-from-image",
             "/api/quiz/generate-from-text",
             "/api/flashcards/generate"
@@ -117,6 +135,84 @@ def health():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.post("/api/extract-text", response_model=ExtractTextResponse)
+async def extract_text_endpoint(request: ExtractTextRequest):
+    """Extract text from multiple images (for course capture)"""
+    try:
+        print("=" * 60)
+        print(f"📸 EXTRACT TEXT REQUEST")
+        print(f"   Images: {len(request.images)}")
+
+        if not request.images or len(request.images) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Aucune image fournie"
+            )
+
+        if len(request.images) > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 10 images autorisées"
+            )
+
+        pages = []
+        all_text = []
+
+        for i, image_data in enumerate(request.images):
+            print(f"   📄 Processing page {i + 1}/{len(request.images)}...")
+
+            # Extract base64
+            image_base64 = extract_base64_from_data_uri(image_data)
+            image_size_mb = (len(image_base64) * 3 / 4) / (1024 * 1024)
+
+            if image_size_mb > 10:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Image {i + 1} trop grande (max 10MB)"
+                )
+
+            # Extract text using the existing function
+            page_text = extract_text(image_base64)
+
+            if not page_text or len(page_text.strip()) < 5:
+                print(f"      ⚠️ Warning: Page {i + 1} has little or no text")
+                page_text = f"[Page {i + 1} - Aucun texte détecté]"
+
+            word_count = len(page_text.split())
+
+            pages.append(ExtractedPage(
+                pageNumber=i + 1,
+                text=page_text,
+                wordCount=word_count
+            ))
+
+            all_text.append(f"\n--- PAGE {i + 1} ---\n{page_text}\n")
+            print(f"      ✅ Extracted {word_count} words")
+
+        combined_text = "\n".join(all_text)
+
+        response = ExtractTextResponse(
+            totalImages=len(request.images),
+            pagesExtracted=len(pages),
+            extractedText=combined_text,
+            pages=pages
+        )
+
+        print(f"✅ SUCCESS: {len(pages)} pages extracted")
+        print(f"   Total text: {len(combined_text)} characters")
+        print("=" * 60)
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        traceback.print_exc()
+        print("=" * 60)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/quiz/generate-from-image", response_model=QuizResponse)
@@ -141,7 +237,7 @@ async def generate_quiz_from_image_endpoint(request: QuizGenerateRequest):
             image_base64=image_base64,
             num_questions=request.num_questions,
             difficulty=request.difficulty,
-            enable_refinement=True  # Self-refining activé
+            enable_refinement=True
         )
 
         # Format response
@@ -205,7 +301,7 @@ async def generate_quiz_from_text_endpoint(request: QuizGenerateFromTextRequest)
             course_text=request.course_text,
             num_questions=request.num_questions,
             difficulty=request.difficulty,
-            enable_refinement=True  # Self-refining activé
+            enable_refinement=True
         )
 
         # Format response
@@ -267,7 +363,7 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
             course_text=request.course_text,
             num_cards=request.num_cards,
             difficulty=request.difficulty,
-            enable_refinement=True  # Self-refining activé
+            enable_refinement=True
         )
 
         # Format response
@@ -312,6 +408,7 @@ async def startup_event():
     print("📍 Endpoints disponibles:")
     print("   - GET  /")
     print("   - GET  /api/health")
+    print("   - POST /api/extract-text")
     print("   - POST /api/quiz/generate-from-image")
     print("   - POST /api/quiz/generate-from-text")
     print("   - POST /api/flashcards/generate")
