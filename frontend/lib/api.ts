@@ -22,6 +22,7 @@ export interface Quiz {
   questions: Question[];
   createdAt: string;
   extractedText?: string;
+  totalImages?: number;
 }
 
 export interface Flashcard {
@@ -125,6 +126,44 @@ export async function generateQuizFromText(
   return data;
 }
 
+/**
+ * Générer un quiz depuis plusieurs images
+ */
+export async function generateQuizFromMultipleImages(
+  images: string[],
+  numQuestions: number = 5,
+  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+): Promise<Quiz> {
+  const url = `${API_BASE_URL}/api/quiz/generate-from-images`;
+  console.log('📡 Requête Quiz (multi-images) vers:', url);
+  console.log('📸 Nombre d\'images:', images.length);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      images,
+      num_questions: numQuestions,
+      difficulty,
+    }),
+  });
+
+  console.log('📊 Response status:', response.status);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
+    console.error('❌ API Error:', error);
+    throw new Error(error.detail || 'Erreur lors de la génération du quiz');
+  }
+
+  const data = await response.json();
+  console.log('✅ Quiz généré depuis', data.totalImages, 'images');
+
+  return data;
+}
+
 // ============================================
 // FLASHCARDS API
 // ============================================
@@ -171,6 +210,81 @@ export async function generateFlashcards(
 }
 
 // ============================================
+// COURSES / OCR API
+// ============================================
+
+/**
+ * Extraire le texte d'une seule image
+ */
+export async function extractTextFromImage(imageData: string): Promise<string> {
+  const url = `${API_BASE_URL}/api/courses/extract-text`;
+  console.log('📡 Extraction texte (1 image) vers:', url);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ image: imageData }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
+    console.error('❌ API Error:', error);
+    throw new Error(error.detail || 'Erreur lors de l\'extraction du texte');
+  }
+
+  const data = await response.json();
+  console.log('✅ Texte extrait:', data.extracted_text?.length || 0, 'caractères');
+
+  return data.extracted_text;
+}
+
+/**
+ * Extraire le texte de plusieurs images
+ */
+export async function extractTextFromMultipleImages(
+  images: string[]
+): Promise<{
+  extractedText: string;
+  totalImages: number;
+  pagesExtracted: number;
+  totalCharacters: number;
+}> {
+  const url = `${API_BASE_URL}/api/courses/extract-multiple-images`;
+  console.log('📡 Extraction texte (multi-images) vers:', url);
+  console.log('📸 Nombre d\'images:', images.length);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ images }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Erreur' }));
+    console.error('❌ API Error:', error);
+    throw new Error(error.detail || 'Erreur lors de l\'extraction multiple');
+  }
+
+  const data = await response.json();
+  console.log('✅ Extraction terminée:', {
+    totalImages: data.total_images,
+    pagesExtracted: data.pages_extracted,
+    totalCharacters: data.total_characters
+  });
+
+  return {
+    extractedText: data.extracted_text,
+    totalImages: data.total_images,
+    pagesExtracted: data.pages_extracted,
+    totalCharacters: data.total_characters,
+  };
+}
+
+// ============================================
 // HEALTH CHECK
 // ============================================
 
@@ -185,4 +299,23 @@ export async function checkAPIHealth(): Promise<boolean> {
     console.error('❌ API Health Check Failed:', error);
     return false;
   }
+}
+
+/**
+ * Obtenir les informations de l'API
+ */
+export async function getAPIInfo(): Promise<{
+  status: string;
+  version: string;
+  endpoints: string[];
+}> {
+  const url = `${API_BASE_URL}/api/info`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error('Impossible de récupérer les informations de l\'API');
+  }
+
+  return await response.json();
 }

@@ -9,16 +9,13 @@ import {
   FileQuestion,
   Layers,
   BookOpen,
-  Trophy,
-  Calendar,
-  Zap,
-  TrendingUp,
-  Target,
   Sparkles,
   ArrowRight,
   BarChart3,
   Clock,
   Flame,
+  TrendingUp,
+  Target,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -54,19 +51,16 @@ export default function WorkspacePage() {
     if (!user) return;
 
     try {
-      // Quiz stats
       const { data: quizzes } = await supabase
         .from('quiz_history')
         .select('score, total_questions, created_at')
         .eq('user_id', user.id);
 
-      // Flashcard stats
       const { data: decks } = await supabase
         .from('flashcard_decks')
-        .select('flashcards')
+        .select('flashcards, created_at')
         .eq('user_id', user.id);
 
-      // Course stats
       const { data: courses } = await supabase
         .from('courses')
         .select('created_at')
@@ -80,7 +74,6 @@ export default function WorkspacePage() {
         ? Math.round(quizzes.reduce((acc, q) => acc + (q.score / q.total_questions * 100), 0) / quizzes.length)
         : 0;
 
-      // Last activity
       const allDates = [
         ...(quizzes?.map(q => q.created_at) || []),
         ...(courses?.map(c => c.created_at) || [])
@@ -113,11 +106,11 @@ export default function WorkspacePage() {
       description: 'Photo → Texte extrait → Sauvegardé',
       icon: Camera,
       gradient: 'from-blue-500 via-blue-600 to-indigo-600',
-      bgGradient: 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20',
+      bgGradient: 'from-blue-50 to-indigo-50',
       href: '/workspace/capture',
-      iconColor: 'text-blue-600 dark:text-blue-400',
+      iconColor: 'text-blue-600',
       badge: 'Action Principale',
-      badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+      badgeColor: 'bg-blue-100 text-blue-700',
     },
     {
       id: 'quiz',
@@ -125,11 +118,11 @@ export default function WorkspacePage() {
       description: 'QCM intelligents depuis vos cours',
       icon: FileQuestion,
       gradient: 'from-purple-500 via-purple-600 to-pink-600',
-      bgGradient: 'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
+      bgGradient: 'from-purple-50 to-pink-50',
       href: '/workspace/quiz',
-      iconColor: 'text-purple-600 dark:text-purple-400',
+      iconColor: 'text-purple-600',
       badge: 'Populaire',
-      badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+      badgeColor: 'bg-purple-100 text-purple-700',
     },
     {
       id: 'flashcards',
@@ -137,11 +130,11 @@ export default function WorkspacePage() {
       description: 'Répétition espacée + IA',
       icon: Layers,
       gradient: 'from-pink-500 via-rose-600 to-red-600',
-      bgGradient: 'from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20',
+      bgGradient: 'from-pink-50 to-rose-50',
       href: '/workspace/flashcards',
-      iconColor: 'text-pink-600 dark:text-pink-400',
+      iconColor: 'text-pink-600',
       badge: 'Nouveau',
-      badgeColor: 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300',
+      badgeColor: 'bg-pink-100 text-pink-700',
     },
     {
       id: 'courses',
@@ -149,11 +142,11 @@ export default function WorkspacePage() {
       description: 'Bibliothèque de vos cours',
       icon: BookOpen,
       gradient: 'from-teal-500 via-emerald-600 to-green-600',
-      bgGradient: 'from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20',
+      bgGradient: 'from-teal-50 to-emerald-50',
       href: '/workspace/courses',
-      iconColor: 'text-teal-600 dark:text-teal-400',
+      iconColor: 'text-teal-600',
       badge: 'Essentiel',
-      badgeColor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
+      badgeColor: 'bg-teal-100 text-teal-700',
     },
   ];
 
@@ -162,32 +155,32 @@ export default function WorkspacePage() {
       label: 'Quiz',
       value: stats.totalQuizzes,
       icon: FileQuestion,
-      color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-100 dark:bg-blue-900/30',
+      color: 'text-blue-600',
+      bg: 'bg-blue-100',
       change: '+12%',
     },
     {
       label: 'Score Moyen',
       value: `${stats.averageScore}%`,
       icon: Target,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-100 dark:bg-green-900/30',
+      color: 'text-green-600',
+      bg: 'bg-green-100',
       change: '+5%',
     },
     {
       label: 'Cours',
       value: stats.totalCourses,
       icon: BookOpen,
-      color: 'text-purple-600 dark:text-purple-400',
-      bg: 'bg-purple-100 dark:bg-purple-900/30',
+      color: 'text-purple-600',
+      bg: 'bg-purple-100',
       change: '+8',
     },
     {
       label: 'Série',
       value: `${stats.studyStreak}j`,
       icon: Flame,
-      color: 'text-orange-600 dark:text-orange-400',
-      bg: 'bg-orange-100 dark:bg-orange-900/30',
+      color: 'text-orange-600',
+      bg: 'bg-orange-100',
       change: 'Actif',
     },
   ];
@@ -199,7 +192,7 @@ export default function WorkspacePage() {
       icon: BarChart3,
       href: '/workspace/stats',
       color: 'from-indigo-500 to-purple-500',
-      iconColor: 'text-indigo-600 dark:text-indigo-400',
+      iconColor: 'text-indigo-600',
     },
     {
       title: 'Historique Quiz',
@@ -207,16 +200,16 @@ export default function WorkspacePage() {
       icon: Clock,
       href: '/workspace/quiz/history',
       color: 'from-blue-500 to-cyan-500',
-      iconColor: 'text-blue-600 dark:text-blue-400',
+      iconColor: 'text-blue-600',
     },
   ];
 
   if (!isLoaded || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 rounded-full"></div>
-          <div className="w-16 h-16 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin absolute top-0"></div>
+          <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
         </div>
       </div>
     );
@@ -230,15 +223,15 @@ export default function WorkspacePage() {
   const firstName = user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Étudiant';
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
 
         {/* Welcome Header */}
         <div className="mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-3 animate-slide-down">
-            Bonjour, <span className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">{firstName}</span> 👋
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 animate-slide-down">
+            Bonjour, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{firstName}</span> 👋
           </h1>
-          <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 animate-fade-in">
+          <p className="text-base sm:text-lg text-gray-600 animate-fade-in">
             Dernière activité : {stats.lastActivity}
           </p>
         </div>
@@ -248,21 +241,21 @@ export default function WorkspacePage() {
           {statsCards.map((stat, index) => (
             <div
               key={index}
-              className="group bg-white dark:bg-dark-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border border-gray-100 dark:border-dark-200 transform hover:scale-105 animate-scale-in"
+              className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border border-gray-100 transform hover:scale-105 animate-scale-in"
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-transform`}>
                   <stat.icon className={stat.color} size={20} />
                 </div>
-                <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                <span className="text-xs font-semibold text-green-600">
                   {stat.change}
                 </span>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
                 {stat.value}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-600">
                 {stat.label}
               </p>
             </div>
@@ -271,19 +264,19 @@ export default function WorkspacePage() {
 
         {/* Main Features Grid */}
         <div className="mb-8 sm:mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 flex items-center">
             <Sparkles className="mr-3 text-yellow-500" size={28} />
             Fonctionnalités Principales
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             {mainFeatures.map((feature, index) => {
               const Icon = feature.icon;
               return (
                 <Link
                   key={feature.id}
                   href={feature.href}
-                  className="group relative overflow-hidden bg-white dark:bg-dark-100 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 border border-gray-100 dark:border-dark-200"
+                  className="group relative overflow-hidden bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 border border-gray-100"
                   style={{ animationDelay: `${index * 150}ms` }}
                 >
                   {/* Background Gradient */}
@@ -300,22 +293,22 @@ export default function WorkspacePage() {
                       </span>
                     </div>
 
-                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text transition-all">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text transition-all">
                       {feature.title}
                     </h3>
 
-                    <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm sm:text-base">
+                    <p className="text-gray-600 mb-4 text-sm sm:text-base">
                       {feature.description}
                     </p>
 
-                    <div className="flex items-center text-blue-600 dark:text-blue-400 font-semibold group-hover:translate-x-2 transition-transform">
+                    <div className="flex items-center text-blue-600 font-semibold group-hover:translate-x-2 transition-transform">
                       <span className="mr-2">Accéder</span>
                       <ArrowRight size={20} />
                     </div>
                   </div>
 
                   {/* Animated Border */}
-                  <div className="absolute inset-0 rounded-3xl border-2 border-transparent group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-all"></div>
+                  <div className="absolute inset-0 rounded-3xl border-2 border-transparent group-hover:border-blue-500 transition-all"></div>
                 </Link>
               );
             })}
@@ -324,8 +317,8 @@ export default function WorkspacePage() {
 
         {/* Quick Actions */}
         <div className="mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-            <Zap className="mr-3 text-yellow-500" size={28} />
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 flex items-center">
+            <Sparkles className="mr-3 text-yellow-500" size={28} />
             Actions Rapides
           </h2>
 
@@ -336,17 +329,17 @@ export default function WorkspacePage() {
                 <Link
                   key={index}
                   href={action.href}
-                  className="group bg-white dark:bg-dark-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 dark:border-dark-200 transform hover:scale-105"
+                  className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 transform hover:scale-105"
                 >
                   <div className="flex items-center space-x-4">
                     <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center shadow-md`}>
                       <Icon className="text-white" size={24} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">
                         {action.title}
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-gray-600">
                         {action.description}
                       </p>
                     </div>
@@ -359,7 +352,7 @@ export default function WorkspacePage() {
         </div>
 
         {/* Tips Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 rounded-3xl shadow-2xl p-6 sm:p-8">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl shadow-2xl p-6 sm:p-8">
           <div className="flex items-start space-x-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
               <TrendingUp className="text-white" size={24} />
