@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Loader2 } from 'lucide-react';
@@ -8,6 +8,8 @@ import { saveCourse } from '@/lib/courseService';
 import { extractTextFromMultipleImages } from '@/lib/api';
 import MultiImageCapture from '@/components/workspace/MultiImageCapture';
 import LoadingFeedback from '@/components/workspace/LoadingFeedback';
+// 👇 IMPORT CRUCIAL POUR L'XP
+import { addXp } from '@/lib/gamificationService';
 
 export default function CapturePage() {
   const { user } = useUser();
@@ -15,7 +17,7 @@ export default function CapturePage() {
 
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState<string>('uploading'); // 'uploading', 'extracting', 'saving', 'ready'
+  const [loadingStatus, setLoadingStatus] = useState<string>('uploading');
   const [error, setError] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<number | null>(null);
 
@@ -28,65 +30,61 @@ export default function CapturePage() {
     if (!user || selectedImages.length === 0) return;
 
     try {
-      // 1. Activer la modal de chargement
       setLoading(true);
       setError(null);
 
-      // Étape 1 : Upload (Simulation visuelle)
+      // 1. Upload
       setLoadingStatus('uploading');
-      console.log(`📸 Début de l'extraction pour ${selectedImages.length} images...`);
-
-      // Petite pause pour laisser le temps à l'utilisateur de comprendre ce qu'il se passe
+      console.log(`📸 Début...`);
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Étape 2 : Extraction IA
+      // 2. Extraction
       setLoadingStatus('extracting');
       const result = await extractTextFromMultipleImages(selectedImages);
-      console.log(`✅ ${result.pagesExtracted} pages extraites`);
+      console.log(`✅ Extraction terminée`);
 
-      // Étape 3 : Sauvegarde
+      // 3. Sauvegarde
       setLoadingStatus('saving');
+
+      // Titre auto
+      const autoTitle = `Cours - ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} (${result.totalImages} pages)`;
+
       const course = await saveCourse(
         user.id,
         result.extractedText,
-        `Cours - ${result.totalImages} pages - ${new Date().toLocaleDateString('fr-FR')}`
+        autoTitle
       );
 
       console.log('✅ Cours sauvegardé, ID:', course.id);
 
-      // Étape 4 : Prêt ! On ne redirige PAS automatiquement.
+      // 🎉 4. GAMIFICATION : C'est ici qu'on donne l'XP !
+      // On attend que la sauvegarde soit finie pour être sûr que l'user existe
+      console.log("🎁 Ajout des points d'XP...");
+      await addXp(user.id, 50, 'Nouveau cours créé');
+
       setCourseId(course.id);
-      setLoadingStatus('ready'); // Cela fera apparaître le bouton "Accéder au cours" dans la modal
+      setLoadingStatus('ready');
 
     } catch (err: any) {
       console.error('❌ Erreur:', err);
       setError(err.message || 'Erreur lors de l\'extraction');
-      setLoading(false); // En cas d'erreur, on ferme la modal pour montrer le message d'erreur
+      setLoading(false);
     }
   };
 
-  // Fonction appelée quand l'utilisateur clique sur "Accéder à mon cours" dans la modal
   const handleCloseModal = () => {
     if (courseId) {
       router.push(`/workspace/courses/${courseId}`);
     } else {
-      setLoading(false); // Sécurité
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 relative">
-
-      {/* MODAL D'AVIS & CHARGEMENT */}
-      {loading && (
-        <LoadingFeedback
-          status={loadingStatus}
-          onClose={handleCloseModal}
-        />
-      )}
+      {loading && <LoadingFeedback status={loadingStatus} onClose={handleCloseModal} />}
 
       <div className="max-w-4xl mx-auto">
-
         <button
           onClick={() => router.push('/workspace')}
           className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
@@ -143,7 +141,6 @@ export default function CapturePage() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

@@ -3,15 +3,12 @@
 import { useState } from 'react';
 import { useUser, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { BookOpen, Home, BarChart3, Menu, X, LogOut } from 'lucide-react';
+import XpBar from './XpBar'; // Assurez-vous que l'import est correct
 
 export default function WorkspaceNavbar() {
   const { user } = useUser();
-  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const isActive = (path: string) => pathname === path;
 
   const handleSignOut = () => {
     window.location.href = '/';
@@ -35,11 +32,12 @@ export default function WorkspaceNavbar() {
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center space-x-2">
+        {/* Desktop Navigation + XP + Profile */}
+        <div className="hidden md:flex items-center space-x-4"> {/* space-x-4 espacer les éléments */}
+
           <Link
             href="/"
-            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+            className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all text-sm font-medium"
           >
             <Home size={18} />
             <span>Accueil</span>
@@ -47,23 +45,21 @@ export default function WorkspaceNavbar() {
 
           <Link
             href="/workspace/stats"
-            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+            className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all text-sm font-medium"
           >
             <BarChart3 size={18} />
             <span>Stats</span>
           </Link>
 
-          <button
-            onClick={handleSignOut}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all"
-          >
-            <LogOut size={18} />
-            <span>Déconnexion</span>
-          </button>
+          {/* Zone Droite : XP + UserButton */}
+          <div className="flex items-center gap-3 pl-4 border-l border-gray-200 ml-2">
+            {/* Barre d'XP */}
+            <XpBar />
 
-          <div className="ml-2">
+            {/* User Button */}
             <UserButton afterSignOutUrl="/" />
           </div>
+
         </div>
 
         {/* Mobile Menu Button */}
@@ -80,6 +76,11 @@ export default function WorkspaceNavbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-200 bg-white">
           <div className="p-4 space-y-2">
+            {/* XP Bar visible en mobile en haut du menu */}
+            <div className="flex justify-center mb-4">
+               <XpBar />
+            </div>
+
             <Link
               href="/"
               onClick={() => setMobileMenuOpen(false)}
@@ -109,9 +110,9 @@ export default function WorkspaceNavbar() {
               <span className="font-medium">Déconnexion</span>
             </button>
 
-            <div className="pt-4 flex items-center space-x-3 px-4">
+            <div className="pt-4 flex items-center justify-center space-x-3 px-4 border-t border-gray-100 mt-2">
               <UserButton afterSignOutUrl="/" />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 font-medium">
                 {user?.firstName || user?.emailAddresses[0]?.emailAddress}
               </span>
             </div>

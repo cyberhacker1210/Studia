@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import { Flashcard } from '@/lib/flashcardService';
+import { useUser } from '@clerk/nextjs';
+// 👇 Import XP
+import { addXp } from '@/lib/gamificationService';
 
 interface FlashcardViewerProps {
   flashcards: Flashcard[];
@@ -10,6 +13,7 @@ interface FlashcardViewerProps {
 }
 
 export default function FlashcardViewer({ flashcards, onProgress }: FlashcardViewerProps) {
+  const { user } = useUser();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [reviewedCards, setReviewedCards] = useState<Set<number>>(new Set());
@@ -18,6 +22,8 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   const [finished, setFinished] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewOnlyIndices, setReviewOnlyIndices] = useState<number[]>([]);
+
+  const hasAddedXp = useRef(false); // Anti-doublon XP
 
   // Déterminer les cartes actives selon le mode
   const activeIndices = reviewMode ? reviewOnlyIndices : flashcards.map((_, i) => i);
@@ -41,17 +47,11 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
     };
 
     const handleSwipe = () => {
-      if (touchEndX < touchStartX - 50) {
-        // Swipe left = Next
-        if (currentIndex < activeIndices.length - 1) {
-          handleNext();
-        }
+      if (touchEndX < touchStartX - 50 && currentIndex < activeIndices.length - 1) {
+        handleNext();
       }
-      if (touchEndX > touchStartX + 50) {
-        // Swipe right = Previous
-        if (currentIndex > 0) {
-          handlePrevious();
-        }
+      if (touchEndX > touchStartX + 50 && currentIndex > 0) {
+        handlePrevious();
       }
     };
 
@@ -64,9 +64,24 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
     };
   }, [currentIndex, activeIndices]);
 
+  // 🎉 EFFET : Donner XP à la fin
+  useEffect(() => {
+    const giveRewards = async () => {
+      if (finished && user && !hasAddedXp.current) {
+        hasAddedXp.current = true;
+        const knownCount = knownCards.size;
+
+        // Formule : 5 XP par carte connue + 10 XP bonus de fin
+        const xpAmount = 10 + (knownCount * 5);
+
+        await addXp(user.id, xpAmount, 'Session Flashcards terminée');
+      }
+    };
+    giveRewards();
+  }, [finished, user, knownCards]);
+
   const handleNext = () => {
     setIsFlipped(false);
-
     if (currentIndex < activeIndices.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -88,17 +103,14 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       onProgress(actualCardIndex, remembered);
     }
 
-    // Marquer comme révisée
     const newReviewed = new Set(reviewedCards);
     newReviewed.add(actualCardIndex);
     setReviewedCards(newReviewed);
 
-    // Ajouter à la bonne pile
     if (remembered) {
       const newKnown = new Set(knownCards);
       newKnown.add(actualCardIndex);
       setKnownCards(newKnown);
-
       const newToReview = new Set(toReviewCards);
       newToReview.delete(actualCardIndex);
       setToReviewCards(newToReview);
@@ -106,7 +118,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       const newToReview = new Set(toReviewCards);
       newToReview.add(actualCardIndex);
       setToReviewCards(newToReview);
-
       const newKnown = new Set(knownCards);
       newKnown.delete(actualCardIndex);
       setKnownCards(newKnown);
@@ -116,6 +127,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   };
 
   const handleReset = () => {
+    hasAddedXp.current = false; // Reset XP flag pour nouvelle session
     setCurrentIndex(0);
     setIsFlipped(false);
     setReviewedCards(new Set());
@@ -131,12 +143,8 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       handleReset();
       return;
     }
-
+    hasAddedXp.current = false; // Reset XP flag
     const toReviewIndices = Array.from(toReviewCards).sort((a, b) => a - b);
-
-    console.log('🔄 Mode révision activé');
-    console.log('📋 Cartes à revoir:', toReviewIndices);
-
     setReviewMode(true);
     setReviewOnlyIndices(toReviewIndices);
     setCurrentIndex(0);
@@ -152,10 +160,17 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
     const knownCount = knownCards.size;
     const toReviewCount = toReviewCards.size;
     const successRate = totalCards > 0 ? Math.round((knownCount / totalCards) * 100) : 0;
+    const xpEarned = 10 + (knownCount * 5); // Juste pour l'affichage
 
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-0">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 text-center border-4 border-green-200">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 text-center border-4 border-green-200 relative overflow-hidden">
+
+          {/* Badge XP Gagné */}
+          <div className="absolute top-4 right-4 bg-yellow-400 text-white font-bold px-3 py-1 rounded-full shadow-lg animate-pulse">
+            +{xpEarned} XP
+          </div>
+
           <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-green-600 w-12 h-12 sm:w-16 sm:h-16" />
           </div>
@@ -163,12 +178,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
             🎉 Session Terminée !
           </h2>
-
-          {reviewMode && (
-            <p className="text-gray-600 mb-6">
-              Mode révision : {totalCards} cartes révisées
-            </p>
-          )}
 
           <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
             <div className="bg-green-50 rounded-xl p-5 sm:p-6 border-2 border-green-200">
@@ -201,7 +210,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
             {toReviewCount > 0 && (
               <button
                 onClick={handleReviewAgain}
-                className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold active:scale-95 transition-all shadow-lg touch-manipulation"
+                className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 active:scale-95 transition-all shadow-lg touch-manipulation"
               >
                 🔄 Réviser les {toReviewCount} cartes à revoir
               </button>
@@ -243,7 +252,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs sm:text-sm font-medium text-gray-600">
             Carte {currentIndex + 1} sur {totalCards}
-            {reviewMode && ` (carte #${activeIndices[currentIndex] + 1})`}
           </span>
           <span className="text-xs sm:text-sm font-medium text-blue-600">
             {reviewedCount}/{totalCards} ({progress}%)
@@ -257,22 +265,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex justify-center gap-3 sm:gap-4 mb-4">
-        <div className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-green-50 rounded-lg border border-green-200">
-          <CheckCircle size={16} className="text-green-600" />
-          <span className="text-xs sm:text-sm font-semibold text-green-700">
-            {knownCards.size} connues
-          </span>
-        </div>
-        <div className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-orange-50 rounded-lg border border-orange-200">
-          <XCircle size={16} className="text-orange-600" />
-          <span className="text-xs sm:text-sm font-semibold text-orange-700">
-            {toReviewCards.size} à revoir
-          </span>
-        </div>
-      </div>
-
       {/* Category Badge */}
       <div className="mb-4 text-center">
         <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full border border-purple-200">
@@ -280,7 +272,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
         </span>
       </div>
 
-      {/* Card - Mobile Optimized */}
+      {/* Card */}
       <div className="perspective-1000">
         <div
           className={`relative w-full h-[400px] sm:h-96 transition-transform duration-500 transform-style-3d cursor-pointer ${
@@ -300,9 +292,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
               <p className="text-xs sm:text-sm opacity-80 mt-auto">
                 👆 Appuyez pour voir la réponse
               </p>
-              <p className="text-xs opacity-70 mt-2 sm:hidden">
-                👈 👉 Swipe pour naviguer
-              </p>
             </div>
           </div>
 
@@ -316,7 +305,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
                 {currentCard.back}
               </div>
 
-              {/* Buttons - Mobile Optimized */}
               {!reviewedCards.has(activeIndices[currentIndex]) && (
                 <div className="flex gap-3 sm:gap-4 mt-auto w-full px-2">
                   <button
@@ -346,7 +334,7 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
         </div>
       </div>
 
-      {/* Navigation - Mobile Optimized */}
+      {/* Navigation */}
       <div className="flex items-center justify-between mt-6">
         <button
           onClick={handlePrevious}
@@ -374,19 +362,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
           <ChevronRight size={24} />
         </button>
       </div>
-
-      {/* Indicator */}
-      {reviewedCards.has(activeIndices[currentIndex]) && (
-        <div className="mt-4 text-center">
-          <span className={`inline-block px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold border ${
-            knownCards.has(activeIndices[currentIndex])
-              ? 'bg-green-100 text-green-700 border-green-200'
-              : 'bg-orange-100 text-orange-700 border-orange-200'
-          }`}>
-            {knownCards.has(activeIndices[currentIndex]) ? '✅ Marquée comme connue' : '🔄 À revoir'}
-          </span>
-        </div>
-      )}
 
       <style jsx>{`
         .perspective-1000 {
