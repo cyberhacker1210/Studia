@@ -9,6 +9,7 @@ from datetime import datetime
 import uuid
 import traceback
 
+from .learning_path import generate_mastery_path, generate_daily_plan, chat_with_tutor
 from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
 
@@ -32,6 +33,30 @@ app.add_middleware(
 # ============================================
 # MODELS
 # ============================================
+
+class MasteryRequest(BaseModel):
+    course_text: str
+
+class MotivationRequest(BaseModel):
+    goal: str
+    deadline: str
+    current_xp: int = 0
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[dict]
+    course_context: str
+
+class MasteryResponse(BaseModel):
+    modules: List[dict]
+
+class MotivationResponse(BaseModel):
+    daily_message: str
+    quote: str
+    micro_tasks: List[dict]
+
+class ChatResponse(BaseModel):
+    reply: str
 
 class QuizGenerateRequest(BaseModel):
     image: str
@@ -419,6 +444,45 @@ async def startup_event():
     print("   ✓ Flashcard quality validation")
     print("=" * 60 + "\n")
 
+
+# ============================================
+# NOUVEAUX ENDPOINTS (FEATURES V2)
+# ============================================
+
+@app.post("/api/path/generate", response_model=MasteryResponse)
+async def generate_path_endpoint(request: MasteryRequest):
+    """Génère le parcours guidé (Mode Maîtrise)"""
+    try:
+        if not request.course_text or len(request.course_text) < 10:
+            raise HTTPException(status_code=400, detail="Texte du cours manquant")
+
+        path_data = generate_mastery_path(request.course_text)
+        return MasteryResponse(modules=path_data["modules"])
+    except Exception as e:
+        print(f"❌ Error generating path: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/motivation/generate", response_model=MotivationResponse)
+async def generate_motivation_endpoint(request: MotivationRequest):
+    """Génère le plan de motivation quotidien"""
+    try:
+        plan_data = generate_daily_plan(request.goal, request.deadline, request.current_xp)
+        return MotivationResponse(**plan_data)
+    except Exception as e:
+        print(f"❌ Error generating motivation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat/tutor", response_model=ChatResponse)
+async def chat_tutor_endpoint(request: ChatRequest):
+    """Chat avec le Professeur IA"""
+    try:
+        reply = chat_with_tutor(request.history, request.course_context)
+        return ChatResponse(reply=reply)
+    except Exception as e:
+        print(f"❌ Error in chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
