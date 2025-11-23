@@ -4,63 +4,82 @@ export interface Course {
   id: number;
   user_id: string;
   title: string;
-  description: string | null;
+  description?: string;
   extracted_text: string;
   created_at: string;
 }
 
 /**
- * Sauvegarder un cours (texte extrait)
+ * Sauvegarde un nouveau cours dans Supabase
+ * S'assure d'abord que l'utilisateur existe dans la table 'users'
  */
-export async function saveCourse(
-  userId: string,
-  extractedText: string,
-  title?: string
-): Promise<Course> {
+export async function saveCourse(userId: string, extractedText: string, title: string) {
   try {
+    // 1. Synchronisation de l'utilisateur (Création s'il n'existe pas)
+    // C'est crucial pour éviter l'erreur "foreign key constraint"
+    const { error: userError } = await supabase
+      .from('users')
+      .upsert(
+        {
+          id: userId,
+          // On peut ajouter d'autres champs par défaut ici si besoin
+          // xp: 0, level: 1... (mais Supabase a déjà des defaults)
+        },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+
+    if (userError) {
+      console.warn("⚠️ Warning: Impossible de synchroniser l'utilisateur", userError.message);
+      // On ne bloque pas le processus, on tente quand même de sauvegarder le cours
+    }
+
+    // 2. Sauvegarde du cours
     const { data, error } = await supabase
       .from('courses')
-      .insert({
-        user_id: userId,
-        title: title || `Cours du ${new Date().toLocaleDateString('fr-FR')}`,
-        description: null,
-        extracted_text: extractedText,
-        created_at: new Date().toISOString()
-      })
+      .insert([
+        {
+          user_id: userId,
+          title: title,
+          extracted_text: extractedText,
+        }
+      ])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erreur Supabase (insert course):', error);
+      throw new Error(error.message);
+    }
 
     return data;
-  } catch (error) {
-    console.error('Erreur sauvegarde cours:', error);
-    throw error;
+
+  } catch (err: any) {
+    console.error('❌ Erreur Service:', err);
+    throw new Error(err.message || 'Impossible de sauvegarder le cours');
   }
 }
 
 /**
- * Récupérer tous les cours d'un utilisateur
+ * Récupère tous les cours d'un utilisateur
  */
-export async function getUserCourses(userId: string): Promise<Course[]> {
+export async function getUserCourses(userId: string) {
   const { data, error } = await supabase
     .from('courses')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(error.message);
+  }
 
-  return data || [];
+  return data as Course[];
 }
 
 /**
- * Récupérer un cours par ID
+ * Récupère un cours spécifique par son ID
  */
-export async function getCourseById(
-  courseId: number,
-  userId: string
-): Promise<Course | null> {
+export async function getCourseById(courseId: number, userId: string) {
   const { data, error } = await supabase
     .from('courses')
     .select('*')
@@ -69,42 +88,44 @@ export async function getCourseById(
     .single();
 
   if (error) {
-    console.error('Erreur récupération cours:', error);
-    return null;
+    throw new Error(error.message);
+  }
+
+  return data as Course;
+}
+
+/**
+ * Met à jour un cours (titre, description)
+ */
+export async function updateCourse(courseId: number, userId: string, updates: Partial<Course>) {
+  const { data, error } = await supabase
+    .from('courses')
+    .update(updates)
+    .eq('id', courseId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
   }
 
   return data;
 }
 
 /**
- * Supprimer un cours
+ * Supprime un cours
  */
-export async function deleteCourse(
-  courseId: number,
-  userId: string
-): Promise<void> {
+export async function deleteCourse(courseId: number, userId: string) {
   const { error } = await supabase
     .from('courses')
     .delete()
     .eq('id', courseId)
     .eq('user_id', userId);
 
-  if (error) throw error;
-}
+  if (error) {
+    throw new Error(error.message);
+  }
 
-/**
- * Mettre à jour le titre/description
- */
-export async function updateCourse(
-  courseId: number,
-  userId: string,
-  updates: { title?: string; description?: string }
-): Promise<void> {
-  const { error } = await supabase
-    .from('courses')
-    .update(updates)
-    .eq('id', courseId)
-    .eq('user_id', userId);
-
-  if (error) throw error;
+  return true;
 }
