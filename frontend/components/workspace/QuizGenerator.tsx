@@ -43,10 +43,15 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
 
       // 2. Sauvegarder le texte extrait
       if (quiz.extractedText) {
-        console.log('💾 Sauvegarde du cours...');
-        await saveCourse(user.id, quiz.extractedText);
-        console.log('✅ Cours sauvegardé');
-      }
+          console.log('💾 Sauvegarde du cours...');
+
+          // 👇 CORRECTION ICI : On ajoute un titre généré automatiquement comme 3ème argument
+          const autoTitle = `Quiz généré - ${new Date().toLocaleDateString('fr-FR')}`;
+
+          await saveCourse(user.id, quiz.extractedText, autoTitle);
+
+          console.log('✅ Cours sauvegardé');
+        }
 
       onQuizGenerated(quiz);
     } catch (err) {
