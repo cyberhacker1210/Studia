@@ -1,13 +1,19 @@
 """
-Learning Path Generator (Interactive Mode)
+Learning Path, Motivator & Chat Generator
+Ce fichier contient toute la logique IA pour les features avancées.
 """
 import json
 import os
+from typing import List
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ==========================================
+# 1. MODE PARCOURS (INTERACTIF)
+# ==========================================
 
 def generate_mastery_path(course_text: str) -> dict:
     """
@@ -51,12 +57,17 @@ def generate_mastery_path(course_text: str) -> dict:
     }}
     """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        response_format={"type": "json_object"},
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return json.loads(response.choices[0].message.content)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"Error generating path: {e}")
+        # Fallback au cas où l'IA échoue
+        return {"steps": []}
 
 
 def evaluate_student_answer(instruction: str, student_answer: str, course_context: str) -> dict:
@@ -85,6 +96,11 @@ def evaluate_student_answer(instruction: str, student_answer: str, course_contex
         messages=[{"role": "user", "content": prompt}]
     )
     return json.loads(response.choices[0].message.content)
+
+
+# ==========================================
+# 2. MOTIVATEUR
+# ==========================================
 
 def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
     """
@@ -116,3 +132,46 @@ def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
     )
 
     return json.loads(response.choices[0].message.content)
+
+
+# ==========================================
+# 3. CHAT TUTOR (C'est celle-ci qui manquait !)
+# ==========================================
+
+def chat_with_tutor(history: List[dict], course_context: str) -> str:
+    """
+    Gère la conversation avec le Professeur IA Socratique
+    """
+    system_prompt = f"""Tu es le "Professeur Studia", un tuteur IA bienveillant et socratique.
+    
+    CONTEXTE DU COURS:
+    {course_context[:4000]}
+    
+    TES RÈGLES PÉDAGOGIQUES CRITIQUES :
+    1. NE DONNE JAMAIS la réponse directe tout de suite.
+    2. Pose des questions pour guider l'étudiant vers la réponse ("À ton avis...", "Rappelle-toi de...").
+    3. Utilise des analogies simples pour expliquer les concepts complexes.
+    4. Si l'étudiant est bloqué, donne un indice, puis un autre.
+    5. Sois encourageant et chaleureux (utilise quelques emojis).
+    6. Vérifie toujours la compréhension à la fin ("Est-ce que ça fait sens pour toi ?").
+    
+    Réponds de manière concise.
+    """
+
+    # On nettoie l'historique pour s'assurer du format
+    clean_history = [{"role": "system", "content": system_prompt}]
+
+    for msg in history:
+        if msg.get("role") in ["user", "assistant"]:
+            clean_history.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=clean_history,
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content
