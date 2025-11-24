@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles, GraduationCap } from 'lucide-react';
+import { Send, User, Bot, Loader2, Sparkles, GraduationCap, AlertTriangle } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -24,6 +24,9 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Variable d'environnement pour l'API
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
   // Auto-scroll vers le bas
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,34 +43,41 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
     const userMessage = input.trim();
     setInput('');
 
-    // 1. Ajouter le message utilisateur
+    // 1. Ajouter le message utilisateur à l'interface
     const newHistory = [...messages, { role: 'user', content: userMessage } as Message];
     setMessages(newHistory);
     setIsLoading(true);
 
     try {
-      // 2. Appel à l'API "Professeur Socratique"
-      const response = await fetch('http://localhost:8000/api/chat/tutor', {
+      // 2. Nettoyer l'historique pour l'API (garder uniquement user/assistant)
+      const cleanHistory = newHistory
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content }));
+
+      // 3. Appel à l'API "Professeur Socratique"
+      const response = await fetch(`${API_URL}/api/chat/tutor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          history: newHistory.filter(m => m.role !== 'system'), // On filtre le système si besoin
+          history: cleanHistory,
           course_context: courseText
         }),
       });
 
-      if (!response.ok) throw new Error('Erreur réseau');
+      if (!response.ok) {
+        throw new Error(`Erreur serveur: ${response.status}`);
+      }
 
       const data = await response.json();
 
-      // 3. Ajouter la réponse du prof
+      // 4. Ajouter la réponse du prof
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (error) {
       console.error('Erreur chat:', error);
       setMessages(prev => [...prev, {
         role: 'system',
-        content: "❌ Désolé, j'ai eu un petit problème de connexion. Réessaie !"
+        content: "❌ Désolé, j'ai eu un petit problème de connexion avec le professeur. Réessaie dans un instant !"
       }]);
     } finally {
       setIsLoading(false);
@@ -103,7 +113,7 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
               key={idx}
               className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-3`}>
+              <div className={`flex max-w-[85%] md:max-w-[75%] ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-3`}>
 
                 {/* Avatar */}
                 {!isSystem && (
@@ -118,12 +128,14 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
                 <div
                   className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
                     isSystem 
-                      ? 'bg-red-50 text-red-600 w-full text-center border border-red-100'
+                      ? 'bg-red-50 text-red-600 w-full text-center border border-red-100 flex items-center justify-center gap-2'
                       : isUser
                         ? 'bg-blue-600 text-white rounded-tr-none'
                         : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                   }`}
                 >
+                  {isSystem && <AlertTriangle size={16} />}
+
                   {/* Rendu basique du Markdown pour le gras et les retours à la ligne */}
                   <div className="whitespace-pre-wrap">
                     {msg.content.split('**').map((part, i) =>
@@ -138,7 +150,7 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
 
         {/* Indicateur de frappe */}
         {isLoading && (
-          <div className="flex justify-start w-full">
+          <div className="flex justify-start w-full animate-in fade-in duration-300">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
                 <Bot size={16} />
@@ -164,13 +176,13 @@ export default function CourseChat({ courseText, courseTitle }: CourseChatProps)
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Posez votre question au professeur..."
-            className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-2 text-gray-700 placeholder-gray-400"
+            className="flex-1 bg-transparent border-none focus:ring-0 px-4 py-2 text-gray-700 placeholder-gray-400 outline-none"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center justify-center"
           >
             {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
           </button>

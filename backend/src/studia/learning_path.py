@@ -1,6 +1,5 @@
 """
 Learning Path, Motivator & Chat Generator
-Ce fichier contient toute la logique IA pour les features avancées.
 """
 import json
 import os
@@ -12,48 +11,40 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ==========================================
-# 1. MODE PARCOURS (INTERACTIF)
+# 1. MODE PARCOURS (NOUVELLE LOGIQUE 3 ÉTAPES)
 # ==========================================
 
 def generate_mastery_path(course_text: str) -> dict:
     """
-    Génère un parcours interactif étape par étape (Feynman, Active Recall, etc.)
+    Génère un parcours en 3 phases : Apprentissage, Quiz, Pratique.
     """
-    print("🧬 Generating Interactive Mastery Path...")
+    print("🧬 Generating Scientific Mastery Path...")
 
-    prompt = f"""You are an expert pedagogical engineer. Design a 3-STEP ACTIVE LEARNING SESSION for this course content.
+    prompt = f"""You are a pedagogical expert. Create a Mastery Session for this course.
+
+    COURSE TEXT: {course_text[:3500]}...
+
+    Generate a JSON object with exactly 3 parts:
     
-    COURSE TEXT: {course_text[:3000]}... (truncated)
+    1. "learning_content": A clear, structured summary of the KEY concepts (Markdown format).
+    2. "quiz": 5 Multiple Choice Questions to test understanding.
+    3. "practice_task": One complex practical exercise to apply knowledge.
 
-    Create 3 SPECIFIC interactive steps for the student.
-    
-    1. "FEYNMAN": Pick a complex concept and ask the user to explain it simply.
-    2. "QUIZ": Ask a specific open-ended question (no options) that requires deep understanding.
-    3. "SYNTHESIS": Ask for a summary of the key takeaways.
-
-    Return JSON format:
+    JSON FORMAT:
     {{
-      "steps": [
+      "learning_content": "## Title\\n\\nExplanation of concepts...",
+      "quiz": [
         {{
-          "id": 1,
-          "type": "feynman",
-          "concept": "Name of the concept",
-          "instruction": "Explain [Concept] to a 5-year-old using an analogy.",
-          "xp": 50
+          "question": "Question text?",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "correct_index": 0 (0-3)
         }},
-        {{
-          "id": 2,
-          "type": "quiz_open",
-          "instruction": "What is the relationship between X and Y according to the text?",
-          "xp": 30
-        }},
-        {{
-           "id": 3,
-           "type": "synthesis",
-           "instruction": "Summarize the main idea in one sentence.",
-           "xp": 100
-        }}
-      ]
+        ... (5 questions total)
+      ],
+      "practice_task": {{
+        "instruction": "Describe a specific scenario where the student must apply the course.",
+        "xp": 100
+      }}
     }}
     """
 
@@ -65,31 +56,23 @@ def generate_mastery_path(course_text: str) -> dict:
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
-        print(f"Error generating path: {e}")
-        # Fallback au cas où l'IA échoue
-        return {"steps": []}
-
+        print(f"Error path: {e}")
+        return {} # Géré dans le main.py
 
 def evaluate_student_answer(instruction: str, student_answer: str, course_context: str) -> dict:
-    """
-    Corrige la réponse de l'élève (Feynman ou Quiz)
-    """
-    prompt = f"""You are a teacher correcting a student.
-    
-    CONTEXT: {course_context[:2000]}
-    QUESTION/INSTRUCTION: {instruction}
-    STUDENT ANSWER: {student_answer}
-    
-    Evaluate the answer based on the context.
+    """Corrige l'exercice pratique"""
+    prompt = f"""Teacher context.
+    COURSE: {course_context[:2000]}
+    TASK: {instruction}
+    ANSWER: {student_answer}
     
     Return JSON:
     {{
       "is_correct": boolean,
-      "feedback": "Detailed feedback explaining why it is right or wrong.",
+      "feedback": "Constructive feedback.",
       "score": number (0-100)
     }}
     """
-
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         response_format={"type": "json_object"},
@@ -99,79 +82,48 @@ def evaluate_student_answer(instruction: str, student_answer: str, course_contex
 
 
 # ==========================================
-# 2. MOTIVATEUR
-# ==========================================
-
-def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
-    """
-    Découpe un objectif en micro-tâches pour la motivation
-    """
-    prompt = f"""You are a productivity coach. 
-    GOAL: "{goal}" | DEADLINE: "{deadline}" | XP: {current_xp}.
-
-    Create a plan for TODAY only.
-    
-    Return JSON:
-    {{
-      "daily_message": "Short encouraging message",
-      "quote": "Motivational quote",
-      "micro_tasks": [
-        {{
-          "id": 1,
-          "task": "Actionable micro-task (e.g. Read page 5)",
-          "xp_reward": 20
-        }}
-      ]
-    }}
-    """
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        response_format={"type": "json_object"},
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    return json.loads(response.choices[0].message.content)
-
-
-# ==========================================
-# 3. CHAT TUTOR (C'est celle-ci qui manquait !)
+# 2. CHAT TUTOR (CORRECTION ERREUR)
 # ==========================================
 
 def chat_with_tutor(history: List[dict], course_context: str) -> str:
     """
-    Gère la conversation avec le Professeur IA Socratique
+    Gère la conversation avec le Professeur IA (Sécurisé)
     """
-    system_prompt = f"""Tu es le "Professeur Studia", un tuteur IA bienveillant et socratique.
-    
-    CONTEXTE DU COURS:
-    {course_context[:4000]}
-    
-    TES RÈGLES PÉDAGOGIQUES CRITIQUES :
-    1. NE DONNE JAMAIS la réponse directe tout de suite.
-    2. Pose des questions pour guider l'étudiant vers la réponse ("À ton avis...", "Rappelle-toi de...").
-    3. Utilise des analogies simples pour expliquer les concepts complexes.
-    4. Si l'étudiant est bloqué, donne un indice, puis un autre.
-    5. Sois encourageant et chaleureux (utilise quelques emojis).
-    6. Vérifie toujours la compréhension à la fin ("Est-ce que ça fait sens pour toi ?").
-    
-    Réponds de manière concise.
-    """
+    system_prompt = f"""Tu es le Professeur Studia, tuteur socratique.
+    CONTEXTE: {course_context[:3000]}
+    RÈGLES: Ne donne pas la réponse, guide l'étudiant. Sois bref."""
 
-    # On nettoie l'historique pour s'assurer du format
+    # ✅ FIX: On reconstruit l'historique proprement pour éviter les erreurs de format
     clean_history = [{"role": "system", "content": system_prompt}]
 
     for msg in history:
-        if msg.get("role") in ["user", "assistant"]:
+        # On ne garde que user et assistant, et on ignore les messages vides
+        if msg.get("role") in ["user", "assistant"] and msg.get("content"):
             clean_history.append({
                 "role": msg["role"],
-                "content": msg["content"]
+                "content": str(msg["content"]) # Force string
             })
 
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=clean_history,
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Chat Error: {e}")
+        return "Je réfléchis encore... Peux-tu reformuler ?"
+
+# ==========================================
+# 3. MOTIVATEUR (Inchangé)
+# ==========================================
+def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
+    prompt = f"""Productivity Coach. GOAL: {goal}, DEADLINE: {deadline}.
+    Return JSON: {{ "daily_message": "...", "quote": "...", "micro_tasks": [{{ "id": 1, "task": "...", "xp_reward": 20 }}] }}"""
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=clean_history,
-        temperature=0.7
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": prompt}]
     )
-
-    return response.choices[0].message.content
+    return json.loads(response.choices[0].message.content)
