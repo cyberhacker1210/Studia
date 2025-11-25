@@ -7,6 +7,7 @@ export interface Course {
   description?: string;
   extracted_text: string;
   created_at: string;
+  exam_date?: string | null;
 }
 
 /**

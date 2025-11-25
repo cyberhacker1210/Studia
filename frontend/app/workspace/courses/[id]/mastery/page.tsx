@@ -3,29 +3,39 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { ArrowRight, BrainCircuit, CheckCircle, XCircle, Loader2, BookOpen, HelpCircle, RotateCcw, Sparkles, ArrowLeft } from 'lucide-react';
+import {
+    ArrowRight, BrainCircuit, CheckCircle, XCircle, Loader2,
+    BookOpen, HelpCircle, RotateCcw, Sparkles, ArrowLeft, Save, Layers
+} from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
-import ReactMarkdown from 'react-markdown'; // Optionnel: installe avec 'npm install react-markdown' sinon affiche le texte brut
+import { saveFlashcardDeck } from '@/lib/flashcardService';
+import ReactMarkdown from 'react-markdown'; // ⚠️ Nécessite npm install react-markdown
 
-export default function MasteryPage() {
+export default function ImmersiveMasteryPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
 
   const [courseText, setCourseText] = useState('');
+  const [courseTitle, setCourseTitle] = useState('');
+  const [courseId, setCourseId] = useState<number>(0);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // --- STATE MACHINE ---
-  // phases: 'learning' -> 'quiz' -> 'result_quiz' -> 'practice' -> 'feedback_practice'
-  const [phase, setPhase] = useState<'learning' | 'quiz' | 'result_quiz' | 'practice' | 'feedback_practice'>('learning');
+  // Phases: 'learning' -> 'quiz' -> 'result_quiz' -> 'practice' -> 'feedback_practice'
+  const [phase, setPhase] = useState<string>('learning');
 
-  // Quiz State
-  const [quizAnswers, setQuizAnswers] = useState<number[]>([]); // Index des réponses
+  // State Flashcards
+  const [savedFlashcards, setSavedFlashcards] = useState(false);
+  const [isSavingCards, setIsSavingCards] = useState(false);
+
+  // State Quiz
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizScore, setQuizScore] = useState(0);
 
-  // Practice State
+  // State Practice
   const [practiceAnswer, setPracticeAnswer] = useState('');
   const [practiceFeedback, setPracticeFeedback] = useState<any>(null);
   const [evaluating, setEvaluating] = useState(false);
@@ -40,29 +50,55 @@ export default function MasteryPage() {
     try {
       const course = await getCourseById(Number(params.id), user!.id);
       setCourseText(course.extracted_text);
+      setCourseTitle(course.title);
+      setCourseId(course.id);
 
       const res = await fetch(`${API_URL}/api/path/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ course_text: course.extracted_text }),
       });
-      const data = await res.json();
 
-      // Initialisation des réponses vides pour le quiz
+      if(!res.ok) throw new Error("Erreur API");
+
+      const data = await res.json();
       setQuizAnswers(new Array(data.quiz.length).fill(-1));
       setSession(data);
     } catch (err) {
       console.error(err);
+      setError("Impossible de générer le parcours. Le cours est peut-être trop court.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- LOGIQUE QUIZ ---
-  const handleQuizOptionSelect = (questionIndex: number, optionIndex: number) => {
-      const newAnswers = [...quizAnswers];
-      newAnswers[questionIndex] = optionIndex;
-      setQuizAnswers(newAnswers);
+  // --- ACTION : SAUVEGARDER LES FLASHCARDS ---
+  const handleSaveFlashcards = async () => {
+      if(!user || !session.flashcards) return;
+      setIsSavingCards(true);
+      try {
+          // On formate pour ton service existant
+          const formattedCards = session.flashcards.map((c: any) => ({
+              front: c.front,
+              back: c.back,
+              category: 'Parcours'
+          }));
+
+          await saveFlashcardDeck(
+              user.id,
+              formattedCards,
+              `Flashcards - ${courseTitle}`,
+              'medium',
+              courseId
+          );
+          setSavedFlashcards(true);
+          await addXp(user.id, 20, 'Flashcards sauvegardées');
+      } catch (e) {
+          console.error(e);
+          alert("Erreur lors de la sauvegarde");
+      } finally {
+          setIsSavingCards(false);
+      }
   };
 
   const submitQuiz = () => {
@@ -70,21 +106,15 @@ export default function MasteryPage() {
       session.quiz.forEach((q: any, idx: number) => {
           if (quizAnswers[idx] === q.correct_index) score++;
       });
-
-      const percentage = (score / session.quiz.length) * 100;
+      const percentage = Math.round((score / session.quiz.length) * 100);
       setQuizScore(percentage);
       setPhase('result_quiz');
-
-      if (percentage >= 80 && user) {
-          addXp(user.id, 50, 'Quiz parcours validé');
-      }
+      if (percentage >= 80 && user) addXp(user.id, 50, 'Quiz Validé');
   };
 
-  // --- LOGIQUE PRATIQUE ---
   const submitPractice = async () => {
     if(!practiceAnswer.trim()) return;
     setEvaluating(true);
-
     try {
         const res = await fetch(`${API_URL}/api/path/evaluate`, {
             method: 'POST',
@@ -98,10 +128,7 @@ export default function MasteryPage() {
         const result = await res.json();
         setPracticeFeedback(result);
         setPhase('feedback_practice');
-
-        if (result.is_correct && user) {
-            await addXp(user.id, 100, 'Parcours terminé');
-        }
+        if (result.is_correct && user) await addXp(user.id, 100, 'Parcours terminé');
     } catch (err) {
         console.error(err);
     } finally {
@@ -109,141 +136,170 @@ export default function MasteryPage() {
     }
   };
 
-  // --- RENDERING ---
-
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
-        <BrainCircuit className="text-purple-600 w-16 h-16 animate-pulse mb-4"/>
-        <h2 className="text-2xl font-bold text-gray-900">Génération du parcours scientifique...</h2>
-        <p className="text-gray-500">Création du résumé, du quiz de vérification et de l'exercice.</p>
+        <BrainCircuit className="text-indigo-600 w-16 h-16 animate-pulse mb-4"/>
+        <h2 className="text-2xl font-bold text-gray-900">Préparation de votre séance...</h2>
+        <p className="text-gray-500">L'IA structure vos connaissances.</p>
     </div>
   );
 
-  if (!session) return <div>Erreur de chargement. <button onClick={() => window.location.reload()}>Réessayer</button></div>;
+  if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-
-      {/* Top Bar */}
-      <div className="bg-white border-b border-gray-100 p-4 flex items-center justify-between sticky top-0 z-20">
-         <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
-         <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-purple-700">
-            {phase === 'learning' && "Étape 1 : Apprentissage"}
-            {(phase === 'quiz' || phase === 'result_quiz') && "Étape 2 : Vérification"}
-            {(phase === 'practice' || phase === 'feedback_practice') && "Étape 3 : Application"}
+      {/* Navbar simplifiée */}
+      <div className="bg-white border-b border-gray-100 p-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+         <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full text-gray-600"><ArrowLeft/></button>
+         <div className="font-bold text-gray-800 uppercase tracking-wider text-sm">
+            {phase === 'learning' && "Phase 1 : Apprentissage"}
+            {phase.includes('quiz') && "Phase 2 : Vérification"}
+            {phase.includes('practice') && "Phase 3 : Application"}
          </div>
          <div className="w-8"></div>
       </div>
 
-      <div className="flex-1 p-6 max-w-3xl mx-auto w-full">
+      <div className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
 
-        {/* PHASE 1: APPRENTISSAGE */}
+        {/* === PHASE 1: APPRENTISSAGE (Texte Beau + Flashcards) === */}
         {phase === 'learning' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 mb-8 prose lg:prose-lg max-w-none">
-                    <h2 className="flex items-center gap-3 text-2xl font-black text-gray-900 mb-6">
-                        <BookOpen className="text-blue-600" />
-                        Le Cours Essentiel
-                    </h2>
-                    <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                        {/* Utilise ReactMarkdown si installé, sinon affiche session.learning_content */}
-                        {session.learning_content}
+            <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8">
+
+                {/* CONTENU DU COURS (Markdown) */}
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 prose prose-indigo lg:prose-lg max-w-none">
+                    {/* Le plugin typography de Tailwind rendra ça magnifique */}
+                    <ReactMarkdown>{session.learning_content}</ReactMarkdown>
+                </div>
+
+                {/* FLASHCARDS GÉNÉRÉES */}
+                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                            <Layers className="text-indigo-600"/>
+                            Flashcards Clés ({session.flashcards.length})
+                        </h3>
+                        <button
+                            onClick={handleSaveFlashcards}
+                            disabled={savedFlashcards || isSavingCards}
+                            className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
+                                savedFlashcards 
+                                ? 'bg-green-100 text-green-700 cursor-default' 
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200'
+                            }`}
+                        >
+                            {isSavingCards ? <Loader2 className="animate-spin" size={16}/> : savedFlashcards ? <CheckCircle size={16}/> : <Save size={16}/>}
+                            {savedFlashcards ? "Sauvegardé" : "Sauvegarder le deck"}
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {session.flashcards.map((card: any, idx: number) => (
+                            <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                                <p className="font-bold text-gray-800 mb-2 text-sm">{card.front}</p>
+                                <div className="h-px bg-gray-100 w-full mb-2"></div>
+                                <p className="text-gray-600 text-sm">{card.back}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
+
                 <button
                     onClick={() => setPhase('quiz')}
-                    className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-xl"
                 >
-                    J'ai compris, passer au test <ArrowRight />
+                    J'ai tout retenu, je passe au Quiz <ArrowRight />
                 </button>
             </div>
         )}
 
-        {/* PHASE 2: QUIZ */}
+        {/* === PHASE 2: QUIZ === */}
         {phase === 'quiz' && (
-            <div className="animate-in zoom-in-95">
-                <h2 className="text-2xl font-bold text-center mb-6">Vérifions vos connaissances</h2>
-                <div className="space-y-8">
-                    {session.quiz.map((q: any, qIdx: number) => (
-                        <div key={qIdx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                            <p className="font-bold text-lg mb-4">{qIdx + 1}. {q.question}</p>
-                            <div className="space-y-2">
-                                {q.options.map((opt: string, oIdx: number) => (
-                                    <button
-                                        key={oIdx}
-                                        onClick={() => handleQuizOptionSelect(qIdx, oIdx)}
-                                        className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                                            quizAnswers[qIdx] === oIdx 
-                                            ? 'border-purple-500 bg-purple-50 text-purple-900 font-bold' 
-                                            : 'border-gray-100 hover:border-gray-300'
-                                        }`}
-                                    >
-                                        {opt}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
+            <div className="animate-in zoom-in-95 space-y-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 text-center">
+                    <h2 className="text-xl font-bold text-gray-900">Test de Connaissances</h2>
+                    <p className="text-gray-500">Il faut 80% de réussite pour passer à la suite.</p>
                 </div>
+
+                {session.quiz.map((q: any, qIdx: number) => (
+                    <div key={qIdx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                        <p className="font-bold text-lg mb-4 text-gray-800">{qIdx + 1}. {q.question}</p>
+                        <div className="space-y-2">
+                            {q.options.map((opt: string, oIdx: number) => (
+                                <button
+                                    key={oIdx}
+                                    onClick={() => {
+                                        const newAns = [...quizAnswers];
+                                        newAns[qIdx] = oIdx;
+                                        setQuizAnswers(newAns);
+                                    }}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium ${
+                                        quizAnswers[qIdx] === oIdx 
+                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-900' 
+                                        : 'border-gray-100 hover:border-gray-300 text-gray-600'
+                                    }`}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+
                 <button
                     onClick={submitQuiz}
                     disabled={quizAnswers.includes(-1)}
-                    className="w-full mt-8 bg-purple-600 text-white font-bold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-700 transition-all"
+                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
                 >
-                    Valider le Quiz
+                    Valider mes réponses
                 </button>
             </div>
         )}
 
-        {/* PHASE 2 BIS: RÉSULTAT QUIZ */}
+        {/* === PHASE 2 BIS: RÉSULTAT QUIZ === */}
         {phase === 'result_quiz' && (
-            <div className="text-center animate-in zoom-in-95 flex flex-col items-center justify-center h-[60vh]">
-                <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${
-                    quizScore >= 80 ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
+            <div className="text-center animate-in zoom-in-95 flex flex-col items-center justify-center h-[70vh]">
+                <div className={`w-40 h-40 rounded-full flex items-center justify-center mb-8 shadow-2xl ${
+                    quizScore >= 80 ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'
                 }`}>
-                    {quizScore >= 80 ? <CheckCircle size={64}/> : <XCircle size={64}/>}
+                    <span className="text-5xl font-black">{quizScore}%</span>
                 </div>
 
-                <h2 className="text-4xl font-black mb-2">{quizScore}% de réussite</h2>
-                <p className="text-gray-500 mb-8 text-lg">
+                <h2 className="text-3xl font-black text-gray-900 mb-4">
+                    {quizScore >= 80 ? "C'est validé !" : "Encore un effort..."}
+                </h2>
+                <p className="text-gray-500 mb-10 text-lg max-w-md">
                     {quizScore >= 80
-                        ? "Excellent ! Vous maîtrisez les bases."
-                        : "C'est insuffisant pour passer à la suite."}
+                        ? "Vous maîtrisez les bases. Passons à l'application pratique."
+                        : "Vous devez relire le cours pour bien ancrer les connaissances avant de pratiquer."}
                 </p>
 
                 {quizScore >= 80 ? (
-                    <button
-                        onClick={() => setPhase('practice')}
-                        className="bg-gray-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform flex items-center gap-2"
-                    >
-                        Passer à la Pratique <ArrowRight />
+                    <button onClick={() => setPhase('practice')} className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-transform flex items-center gap-2 shadow-xl">
+                        Exercice Pratique <ArrowRight />
                     </button>
                 ) : (
-                    <button
-                        onClick={() => setPhase('learning')}
-                        className="bg-orange-500 text-white px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform flex items-center gap-2"
-                    >
-                        <RotateCcw /> Revoir le cours
+                    <button onClick={() => setPhase('learning')} className="bg-white text-gray-900 border-2 border-gray-200 px-10 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-transform flex items-center gap-2">
+                        <RotateCcw /> Relire le cours
                     </button>
                 )}
             </div>
         )}
 
-        {/* PHASE 3: PRATIQUE */}
+        {/* === PHASE 3: PRATIQUE === */}
         {phase === 'practice' && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
                 <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-purple-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl">
-                        APPLICATION
+                    <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl uppercase tracking-widest">
+                        Mise en situation
                     </div>
-                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                        <BrainCircuit className="text-purple-600"/> Exercice Pratique
+                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-3 text-gray-900">
+                        <BrainCircuit className="text-indigo-600"/> Cas Pratique
                     </h2>
-                    <p className="text-lg text-gray-700 mb-6">{session.practice_task.instruction}</p>
+                    <p className="text-lg text-gray-700 mb-8 leading-relaxed">{session.practice_task.instruction}</p>
 
                     <textarea
-                        className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-purple-500 outline-none transition-all resize-none h-48 text-lg"
-                        placeholder="Votre réponse détaillée..."
+                        className="w-full p-5 bg-gray-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-indigo-500 outline-none transition-all resize-none h-64 text-lg text-gray-800 placeholder:text-gray-400"
+                        placeholder="Écrivez votre réponse détaillée ici..."
                         value={practiceAnswer}
                         onChange={(e) => setPracticeAnswer(e.target.value)}
                     />
@@ -251,34 +307,34 @@ export default function MasteryPage() {
                     <button
                         onClick={submitPractice}
                         disabled={!practiceAnswer.trim() || evaluating}
-                        className="w-full mt-6 bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full mt-6 bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-xl"
                     >
                         {evaluating ? <Loader2 className="animate-spin"/> : <Sparkles size={20}/>}
-                        {evaluating ? "Analyse en cours..." : "Soumettre au Professeur"}
+                        {evaluating ? "Le professeur corrige..." : "Soumettre ma réponse"}
                     </button>
                 </div>
             </div>
         )}
 
-        {/* PHASE 3 BIS: FEEDBACK FINAL */}
+        {/* === FEEDBACK FINAL === */}
         {phase === 'feedback_practice' && practiceFeedback && (
             <div className="animate-in zoom-in-95">
-                <div className={`p-8 rounded-3xl mb-8 shadow-lg border-2 ${practiceFeedback.is_correct ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100'}`}>
+                <div className={`p-8 rounded-3xl mb-8 shadow-xl border-2 ${practiceFeedback.is_correct ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
                     <h2 className={`text-2xl font-bold mb-4 flex items-center gap-2 ${practiceFeedback.is_correct ? 'text-green-800' : 'text-orange-800'}`}>
-                        {practiceFeedback.is_correct ? <CheckCircle/> : <HelpCircle/>}
-                        {practiceFeedback.is_correct ? "Validé !" : "À améliorer"}
+                        {practiceFeedback.is_correct ? <CheckCircle size={28}/> : <HelpCircle size={28}/>}
+                        {practiceFeedback.is_correct ? "Excellent travail !" : "Des points à revoir"}
                     </h2>
-                    <div className="bg-white/50 p-4 rounded-xl mb-4 text-gray-800 leading-relaxed">
+                    <div className="bg-white/60 p-6 rounded-2xl mb-6 text-gray-800 leading-relaxed text-lg">
                         {practiceFeedback.feedback}
                     </div>
-                    <div className="font-bold text-sm text-right">
-                        Score: {practiceFeedback.score}/100 (+{practiceFeedback.is_correct ? session.practice_task.xp : 10} XP)
+                    <div className="font-bold text-sm text-right text-gray-500 uppercase tracking-wide">
+                        Note attribuée : {practiceFeedback.score}/100
                     </div>
                 </div>
 
                 <button
                     onClick={() => router.push('/workspace')}
-                    className="w-full bg-purple-600 text-white font-bold py-4 rounded-xl hover:bg-purple-700 transition-all"
+                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
                 >
                     Terminer la session
                 </button>
