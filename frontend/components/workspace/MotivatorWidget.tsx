@@ -1,26 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowRight,
   Loader2,
   Check,
   Trophy,
   Sparkles,
-  Flame
+  Flame,
+  RefreshCw,
+  Target
 } from 'lucide-react';
 import { addXp } from '@/lib/gamificationService';
 import { useUser } from '@clerk/nextjs';
 
 export default function MotivatorWidget() {
   const { user } = useUser();
+
   const [goal, setGoal] = useState('');
   const [deadline, setDeadline] = useState('');
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [completedIds, setCompletedIds] = useState<number[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  // --- 1. CHARGEMENT AU DÉMARRAGE (PERSISTANCE) ---
+  useEffect(() => {
+    const savedPlan = localStorage.getItem('studia_daily_plan');
+    const savedCompleted = localStorage.getItem('studia_completed_tasks');
+    const savedGoal = localStorage.getItem('studia_goal'); // On garde aussi l'input
+
+    if (savedPlan) setPlan(JSON.parse(savedPlan));
+    if (savedCompleted) setCompletedIds(JSON.parse(savedCompleted));
+    if (savedGoal) setGoal(savedGoal);
+
+    setIsLoaded(true);
+  }, []);
+
+  // --- 2. SAUVEGARDE AUTOMATIQUE ---
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (plan) {
+        localStorage.setItem('studia_daily_plan', JSON.stringify(plan));
+    } else {
+        localStorage.removeItem('studia_daily_plan');
+    }
+
+    localStorage.setItem('studia_completed_tasks', JSON.stringify(completedIds));
+    localStorage.setItem('studia_goal', goal);
+
+  }, [plan, completedIds, goal, isLoaded]);
+
 
   const generatePlan = async () => {
     if (!goal || !deadline) return;
@@ -38,6 +71,7 @@ export default function MotivatorWidget() {
         });
         const data = await res.json();
         setPlan(data);
+        setCompletedIds([]); // Reset des tâches finies
     } catch (err) {
         console.error(err);
     } finally {
@@ -51,43 +85,51 @@ export default function MotivatorWidget() {
       if (user) await addXp(user.id, xp, 'Micro-tâche motivateur');
   };
 
+  const resetPlan = () => {
+      if (confirm("Abandonner cet objectif ?")) {
+          setPlan(null);
+          setCompletedIds([]);
+          setGoal('');
+          setDeadline('');
+      }
+  };
+
   const progress = plan ? Math.round((completedIds.length / plan.micro_tasks.length) * 100) : 0;
 
-  return (
-    <div className="w-full bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+  if (!isLoaded) return null; // Évite le flash au chargement
 
-      {/* Header */}
-      <div className="relative p-6 pb-0">
-        <div className="flex justify-between items-start mb-4">
+  return (
+    <div className="w-full bg-white rounded-t-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[70vh]">
+
+      {/* HEADER FIXE */}
+      <div className="relative p-6 pb-4 border-b border-slate-100 bg-white z-10 shrink-0">
+        <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
                     <div className="absolute inset-0 bg-orange-500 blur-lg opacity-20 rounded-full"></div>
-                    <div className="relative bg-gradient-to-br from-orange-500 to-red-500 w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20 transform rotate-3">
-                        <Flame size={24} fill="currentColor" className="text-white/90" />
+                    <div className="relative bg-gradient-to-br from-orange-500 to-red-500 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg transform -rotate-3">
+                        <Flame size={20} fill="currentColor" />
                     </div>
                 </div>
                 <div>
-                    <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Objectif du jour</h2>
-                    <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-                        <span className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full whitespace-nowrap">
-                            <Sparkles size={10} />
-                            IA Coach
+                    <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Objectif du jour</h2>
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                        <span className="text-orange-600 font-bold flex items-center gap-1">
+                            <Sparkles size={10} /> IA Coach
                         </span>
-                        <span className="hidden sm:inline">• Boost de productivité</span>
                     </div>
                 </div>
             </div>
 
             {plan && (
                 <div className="flex flex-col items-end shrink-0">
-                    <span className="text-3xl font-black text-gray-900 tabular-nums">{progress}%</span>
-                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Complété</span>
+                    <span className="text-2xl font-black text-slate-900 tabular-nums">{progress}%</span>
                 </div>
             )}
         </div>
 
         {plan && (
-            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden mt-4">
+            <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden mt-3">
                 <div
                     className="h-full bg-gradient-to-r from-orange-500 to-red-500 transition-all duration-1000 ease-out rounded-full"
                     style={{ width: `${progress}%` }}
@@ -96,59 +138,54 @@ export default function MotivatorWidget() {
         )}
       </div>
 
-      <div className="p-6 pt-6">
+      {/* ZONE DE CONTENU SCROLLABLE */}
+      <div className="p-6 overflow-y-auto custom-scrollbar">
         {!plan ? (
-          /* --- ETAT 1 : CONFIGURATION --- */
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-
-            <div className="space-y-4">
-                <div className="group relative w-full">
-                    <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Ton But Principal</label>
+          /* --- CONFIGURATION --- */
+          <div className="space-y-4 animate-in fade-in">
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ton But</label>
                     <input
                         type="text"
-                        placeholder="Ex: Comprendre la physique quantique"
-                        className="w-full px-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-orange-500/20 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all font-medium text-gray-800 placeholder:text-gray-400"
+                        placeholder="Ex: Comprendre la physique..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none transition-all font-medium text-slate-800 text-sm"
                         value={goal}
                         onChange={(e) => setGoal(e.target.value)}
                     />
                 </div>
-
-                <div className="group relative w-full">
-                    <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Date Limite</label>
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Deadline</label>
                     <input
                         type="text"
-                        placeholder="Ex: Demain soir, Lundi prochain..."
-                        className="w-full px-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-orange-500/20 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all font-medium text-gray-800 placeholder:text-gray-400"
+                        placeholder="Ex: Demain soir..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none transition-all font-medium text-slate-800 text-sm"
                         value={deadline}
                         onChange={(e) => setDeadline(e.target.value)}
                     />
                 </div>
-            </div>
 
             <button
               onClick={generatePlan}
               disabled={loading || !goal || !deadline}
-              className="w-full relative group overflow-hidden bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-4 rounded-2xl transition-all transform active:scale-[0.98] disabled:opacity-70 disabled:transform-none shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40"
+              className="w-full mt-2 bg-slate-900 text-white font-bold py-3 rounded-xl transition-all hover:bg-black disabled:opacity-70 flex items-center justify-center gap-2 text-sm shadow-lg"
             >
-              <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
-              <div className="relative flex items-center justify-center gap-3">
-                {loading ? <Loader2 className="animate-spin" /> : <ArrowRight size={20} />}
-                <span>{loading ? "L'IA analyse ton objectif..." : "Générer le Plan Tactique"}</span>
-              </div>
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <ArrowRight size={16} />}
+              <span>{loading ? "Analyse..." : "Générer le Plan"}</span>
             </button>
           </div>
         ) : (
-          /* --- ETAT 2 : PLAN ACTIF --- */
-          <div className="animate-in zoom-in-95 duration-500">
-            <div className="bg-gradient-to-r from-orange-50 via-red-50 to-white p-5 rounded-2xl border border-orange-100/50 mb-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 opacity-10 transform translate-x-2 -translate-y-2 pointer-events-none">
-                    <Trophy size={64} className="text-orange-500" />
-                </div>
-                <p className="text-sm font-bold text-gray-800 relative z-10">"{plan.daily_message}"</p>
-                <p className="text-xs text-orange-600/80 italic mt-2 relative z-10 font-medium">{plan.quote}</p>
+          /* --- PLAN ACTIF --- */
+          <div className="animate-in fade-in space-y-4">
+
+            {/* Citation */}
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 relative">
+                <Trophy size={40} className="text-orange-200 absolute top-2 right-2 opacity-50" />
+                <p className="text-sm font-bold text-slate-800 relative z-10">"{plan.daily_message}"</p>
+                <p className="text-xs text-orange-600/80 italic mt-1 relative z-10">{plan.quote}</p>
             </div>
 
-            <div className="space-y-3">
+            {/* Liste des tâches */}
+            <div className="space-y-2">
               {plan.micro_tasks.map((task: any) => {
                 const isDone = completedIds.includes(task.id);
                 return (
@@ -156,52 +193,31 @@ export default function MotivatorWidget() {
                       key={task.id}
                       onClick={() => handleComplete(task.id, task.xp_reward)}
                       disabled={isDone}
-                      className={`w-full group relative flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-300 text-left overflow-hidden ${
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-left group ${
                           isDone 
-                            ? 'bg-green-50/50 border-green-100' 
-                            : 'bg-white border-gray-100 hover:border-orange-200 hover:shadow-lg hover:shadow-orange-500/5'
+                            ? 'bg-green-50 border-green-100 opacity-80' 
+                            : 'bg-white border-slate-100 hover:border-orange-300 hover:shadow-md'
                       }`}
                   >
-                      <div className="flex items-center gap-4 z-10">
-                          <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
-                              isDone 
-                                ? 'bg-green-500 text-white scale-110 rotate-0' 
-                                : 'bg-gray-100 text-gray-300 group-hover:bg-orange-100 group-hover:text-orange-500'
+                      <div className="flex items-center gap-3">
+                          <div className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                              isDone ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-300 group-hover:text-orange-500'
                           }`}>
-                              <Check size={14} strokeWidth={3} />
+                              <Check size={12} strokeWidth={4} />
                           </div>
-                          <div>
-                            <span className={`text-sm font-semibold transition-colors ${isDone ? 'text-gray-400 line-through decoration-2 decoration-green-200' : 'text-gray-700'}`}>
-                                {task.task}
-                            </span>
-                          </div>
+                          <span className={`text-xs font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                            {task.task}
+                          </span>
                       </div>
-
-                      {!isDone && (
-                          <div className="flex flex-col items-end z-10 shrink-0 ml-2">
-                             <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm shadow-orange-200 whitespace-nowrap">
-                                +{task.xp_reward} XP
-                             </span>
-                          </div>
-                      )}
-                      <div className={`absolute inset-0 bg-green-50 transition-transform duration-500 origin-left ${isDone ? 'scale-x-100' : 'scale-x-0'}`} />
+                      {!isDone && <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">+{task.xp_reward}</span>}
                   </button>
                 )
               })}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-50 flex justify-center">
-                {progress === 100 ? (
-                    <button onClick={() => setPlan(null)} className="text-sm font-bold text-green-600 flex items-center gap-2 hover:underline">
-                        <Trophy size={16} />
-                        Mission accomplie ! Nouvel objectif ?
-                    </button>
-                ) : (
-                    <button onClick={() => setPlan(null)} className="text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors">
-                        Changer d'objectif
-                    </button>
-                )}
-            </div>
+            <button onClick={resetPlan} className="w-full py-2 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors flex items-center justify-center gap-1">
+                <RefreshCw size={12}/> Changer d'objectif
+            </button>
           </div>
         )}
       </div>
