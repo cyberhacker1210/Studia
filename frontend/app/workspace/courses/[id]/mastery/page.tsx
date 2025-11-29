@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { ArrowLeft, Lock, Check, Play, Star, Brain, Loader2 } from 'lucide-react';
+// 👇 AJOUT DE ArrowRight ICI
+import { ArrowLeft, Lock, Check, Play, Star, Brain, Loader2, ArrowRight } from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
 import { supabase } from '@/lib/supabase';
@@ -44,11 +45,8 @@ export default function MasteryPage() {
 
   const loadPath = async () => {
     try {
-      // 1. Vérifier si on a déjà une progression sauvegardée localement (ou DB)
-      // Pour ce MVP amélioré, on utilise localStorage pour la structure des modules
       const localData = localStorage.getItem(`mastery_data_${params.id}`);
 
-      // 2. Récupérer la progression utilisateur depuis Supabase
       const { data: progress } = await supabase
         .from('course_progress')
         .select('current_module_index')
@@ -64,7 +62,6 @@ export default function MasteryPage() {
         setModules(JSON.parse(localData));
         setLoading(false);
       } else {
-        // Sinon, on génère via l'IA
         generateModules();
       }
     } catch (error) {
@@ -88,7 +85,6 @@ export default function MasteryPage() {
         setModules(data.modules);
         localStorage.setItem(`mastery_data_${params.id}`, JSON.stringify(data.modules));
 
-        // Init progress in DB
         await supabase.from('course_progress').upsert({
             user_id: user!.id,
             course_id: Number(params.id),
@@ -103,8 +99,8 @@ export default function MasteryPage() {
   };
 
   const startModule = (index: number) => {
-    if (index > currentModuleIndex) return; // Locked
-    setCurrentModuleIndex(index); // Juste pour l'affichage
+    if (index > currentModuleIndex) return;
+    setCurrentModuleIndex(index);
     setView('learning');
   };
 
@@ -121,7 +117,6 @@ export default function MasteryPage() {
       setView('success');
       const nextIndex = currentModuleIndex + 1;
 
-      // Sauvegarder la progression
       if (nextIndex > currentModuleIndex) {
           await supabase.from('course_progress').upsert({
             user_id: user!.id,
@@ -129,7 +124,6 @@ export default function MasteryPage() {
             current_module_index: nextIndex
           }, { onConflict: 'user_id,course_id' });
 
-          // Mettre à jour l'état local pour débloquer le suivant
           setCurrentModuleIndex(nextIndex);
       }
 
@@ -170,7 +164,6 @@ export default function MasteryPage() {
         </div>
 
         <div className="space-y-6 relative">
-            {/* Ligne verticale de connexion */}
             <div className="absolute left-8 top-8 bottom-8 w-1 bg-slate-100 -z-10"></div>
 
             {modules.map((mod, idx) => {
@@ -190,7 +183,6 @@ export default function MasteryPage() {
                                 : 'bg-white border-green-200 cursor-pointer hover:border-green-400'
                         }`}
                     >
-                        {/* Icone Statut */}
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm z-10 ${
                             isLocked ? 'bg-slate-200 text-slate-400' : 
                             isCompleted ? 'bg-green-500 text-white' : 
@@ -258,7 +250,7 @@ export default function MasteryPage() {
       );
   }
 
-  // === VUE 3 : QUIZ DE VALIDATION ===
+  // === VUE 3 : QUIZ ===
   if (view === 'quiz') {
       const currentModule = modules[currentModuleIndex];
       return (
