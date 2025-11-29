@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, Check, X } from 'lucide-react';
 import { Flashcard } from '@/lib/flashcardService';
 import { useUser } from '@clerk/nextjs';
-// 👇 Import XP
 import { addXp } from '@/lib/gamificationService';
 
 interface FlashcardViewerProps {
@@ -14,368 +13,169 @@ interface FlashcardViewerProps {
 
 export default function FlashcardViewer({ flashcards, onProgress }: FlashcardViewerProps) {
   const { user } = useUser();
+
+  // --- State de Navigation ---
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [reviewedCards, setReviewedCards] = useState<Set<number>>(new Set());
-  const [knownCards, setKnownCards] = useState<Set<number>>(new Set());
-  const [toReviewCards, setToReviewCards] = useState<Set<number>>(new Set());
   const [finished, setFinished] = useState(false);
-  const [reviewMode, setReviewMode] = useState(false);
-  const [reviewOnlyIndices, setReviewOnlyIndices] = useState<number[]>([]);
 
-  const hasAddedXp = useRef(false); // Anti-doublon XP
+  // --- State de Logique (Review Mode) ---
+  const [mode, setMode] = useState<'normal' | 'review'>('normal');
+  const [cardsToReview, setCardsToReview] = useState<Flashcard[]>([]); // Liste des cartes ratées
+  const [activeDeck, setActiveDeck] = useState<Flashcard[]>(flashcards); // Le deck qu'on joue actuellement
 
-  // Déterminer les cartes actives selon le mode
-  const activeIndices = reviewMode ? reviewOnlyIndices : flashcards.map((_, i) => i);
-  const currentCard = flashcards[activeIndices[currentIndex]];
-  const totalCards = activeIndices.length;
-  const reviewedCount = reviewedCards.size;
-  const progress = Math.round((reviewedCount / totalCards) * 100);
+  // --- State de Score ---
+  const [knownCount, setKnownCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
 
-  // Support swipe sur mobile
-  useEffect(() => {
-    let touchStartX = 0;
-    let touchEndX = 0;
+  const hasAddedXp = useRef(false);
+  const currentCard = activeDeck[currentIndex];
+  const progress = Math.round(((currentIndex) / activeDeck.length) * 100);
 
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartX = e.changedTouches[0].screenX;
-    };
+  // Gestion de la réponse (Je sais / Je ne sais pas)
+  const handleResponse = (known: boolean) => {
+    if (known) {
+        setKnownCount(c => c + 1);
+    } else {
+        setReviewCount(c => c + 1);
+        // On ajoute cette carte à la liste de révision si on est en mode normal
+        // ou si on la rate encore en mode review
+        if (!cardsToReview.includes(currentCard)) {
+            setCardsToReview(prev => [...prev, currentCard]);
+        }
+    }
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      touchEndX = e.changedTouches[0].screenX;
-      handleSwipe();
-    };
+    // Callback externe (optionnel)
+    if (onProgress) onProgress(currentIndex, known);
 
-    const handleSwipe = () => {
-      if (touchEndX < touchStartX - 50 && currentIndex < activeIndices.length - 1) {
-        handleNext();
-      }
-      if (touchEndX > touchStartX + 50 && currentIndex > 0) {
-        handlePrevious();
-      }
-    };
-
-    document.addEventListener('touchstart', handleTouchStart);
-    document.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [currentIndex, activeIndices]);
-
-  // 🎉 EFFET : Donner XP à la fin
-  useEffect(() => {
-    const giveRewards = async () => {
-      if (finished && user && !hasAddedXp.current) {
-        hasAddedXp.current = true;
-        const knownCount = knownCards.size;
-
-        // Formule : 5 XP par carte connue + 10 XP bonus de fin
-        const xpAmount = 10 + (knownCount * 5);
-
-        await addXp(user.id, xpAmount, 'Session Flashcards terminée');
-      }
-    };
-    giveRewards();
-  }, [finished, user, knownCards]);
-
-  const handleNext = () => {
-    setIsFlipped(false);
-    if (currentIndex < activeIndices.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+    // Passage à la suivante
+    if (currentIndex < activeDeck.length - 1) {
+      setIsFlipped(false);
+      setTimeout(() => setCurrentIndex(c => c + 1), 150);
     } else {
       setFinished(true);
     }
   };
 
-  const handlePrevious = () => {
-    setIsFlipped(false);
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+  // XP à la fin
+  useEffect(() => {
+    if (finished && user && !hasAddedXp.current) {
+      hasAddedXp.current = true;
+      const xpGain = 10 + (knownCount * 2);
+      addXp(user.id, xpGain, 'Session Flashcards');
     }
+  }, [finished, user, knownCount]);
+
+  // Lancer le mode révision (Revoir les erreurs)
+  const startReviewMode = () => {
+      setMode('review');
+      setActiveDeck(cardsToReview); // On ne joue que les cartes ratées
+      setCardsToReview([]); // On vide pour la prochaine passe
+      setCurrentIndex(0);
+      setKnownCount(0);
+      setReviewCount(0);
+      setFinished(false);
+      setIsFlipped(false);
+      hasAddedXp.current = false; // Permettre de regagner de l'XP (optionnel)
   };
 
-  const handleRemembered = (remembered: boolean) => {
-    const actualCardIndex = activeIndices[currentIndex];
-
-    if (onProgress) {
-      onProgress(actualCardIndex, remembered);
-    }
-
-    const newReviewed = new Set(reviewedCards);
-    newReviewed.add(actualCardIndex);
-    setReviewedCards(newReviewed);
-
-    if (remembered) {
-      const newKnown = new Set(knownCards);
-      newKnown.add(actualCardIndex);
-      setKnownCards(newKnown);
-      const newToReview = new Set(toReviewCards);
-      newToReview.delete(actualCardIndex);
-      setToReviewCards(newToReview);
-    } else {
-      const newToReview = new Set(toReviewCards);
-      newToReview.add(actualCardIndex);
-      setToReviewCards(newToReview);
-      const newKnown = new Set(knownCards);
-      newKnown.delete(actualCardIndex);
-      setKnownCards(newKnown);
-    }
-
-    handleNext();
+  // Tout recommencer à zéro
+  const resetAll = () => {
+      setMode('normal');
+      setActiveDeck(flashcards);
+      setCardsToReview([]);
+      setCurrentIndex(0);
+      setKnownCount(0);
+      setReviewCount(0);
+      setFinished(false);
+      setIsFlipped(false);
+      hasAddedXp.current = false;
   };
 
-  const handleReset = () => {
-    hasAddedXp.current = false; // Reset XP flag pour nouvelle session
-    setCurrentIndex(0);
-    setIsFlipped(false);
-    setReviewedCards(new Set());
-    setKnownCards(new Set());
-    setToReviewCards(new Set());
-    setFinished(false);
-    setReviewMode(false);
-    setReviewOnlyIndices([]);
-  };
-
-  const handleReviewAgain = () => {
-    if (toReviewCards.size === 0) {
-      handleReset();
-      return;
-    }
-    hasAddedXp.current = false; // Reset XP flag
-    const toReviewIndices = Array.from(toReviewCards).sort((a, b) => a - b);
-    setReviewMode(true);
-    setReviewOnlyIndices(toReviewIndices);
-    setCurrentIndex(0);
-    setReviewedCards(new Set());
-    setKnownCards(new Set());
-    setToReviewCards(new Set());
-    setFinished(false);
-    setIsFlipped(false);
-  };
-
-  // Écran de fin
+  // --- ÉCRAN DE FIN ---
   if (finished) {
-    const knownCount = knownCards.size;
-    const toReviewCount = toReviewCards.size;
-    const successRate = totalCards > 0 ? Math.round((knownCount / totalCards) * 100) : 0;
-    const xpEarned = 10 + (knownCount * 5); // Juste pour l'affichage
-
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-0">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 text-center border-4 border-green-200 relative overflow-hidden">
+      <div className="text-center py-12 bg-white border-2 border-slate-100 rounded-[2.5rem] shadow-sm animate-in zoom-in-95 px-6">
+        <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-sm">🎉</div>
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Session terminée !</h2>
 
-          {/* Badge XP Gagné */}
-          <div className="absolute top-4 right-4 bg-yellow-400 text-white font-bold px-3 py-1 rounded-full shadow-lg animate-pulse">
-            +{xpEarned} XP
+        <div className="flex justify-center gap-8 mb-8 mt-6">
+          <div className="text-center p-4 bg-green-50 rounded-2xl border border-green-100 min-w-[100px]">
+            <div className="text-3xl font-black text-green-600">{knownCount}</div>
+            <div className="text-xs font-bold text-green-800 uppercase mt-1">Maîtrisées</div>
           </div>
-
-          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-green-600 w-12 h-12 sm:w-16 sm:h-16" />
+          <div className="text-center p-4 bg-orange-50 rounded-2xl border border-orange-100 min-w-[100px]">
+            <div className="text-3xl font-black text-orange-500">{reviewCount}</div>
+            <div className="text-xs font-bold text-orange-800 uppercase mt-1">À revoir</div>
           </div>
+        </div>
 
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
-            🎉 Session Terminée !
-          </h2>
-
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
-            <div className="bg-green-50 rounded-xl p-5 sm:p-6 border-2 border-green-200">
-              <div className="text-3xl sm:text-4xl font-bold text-green-600 mb-2">
-                {knownCount}
-              </div>
-              <div className="text-xs sm:text-sm text-green-800 font-semibold">
-                ✅ Cartes Connues
-              </div>
-            </div>
-
-            <div className="bg-orange-50 rounded-xl p-5 sm:p-6 border-2 border-orange-200">
-              <div className="text-3xl sm:text-4xl font-bold text-orange-600 mb-2">
-                {toReviewCount}
-              </div>
-              <div className="text-xs sm:text-sm text-orange-800 font-semibold">
-                🔄 À Revoir
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <div className="text-4xl sm:text-5xl font-bold text-gray-900 mb-2">
-              {successRate}%
-            </div>
-            <div className="text-gray-600">Taux de réussite</div>
-          </div>
-
-          <div className="space-y-3">
-            {toReviewCount > 0 && (
-              <button
-                onClick={handleReviewAgain}
-                className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 active:scale-95 transition-all shadow-lg touch-manipulation"
-              >
-                🔄 Réviser les {toReviewCount} cartes à revoir
-              </button>
+        <div className="space-y-3 max-w-xs mx-auto">
+            {/* BOUTON "REVOIR LES ERREURS" (Si erreurs) */}
+            {cardsToReview.length > 0 && (
+                <button
+                    onClick={startReviewMode}
+                    className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold shadow-lg hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    <RotateCcw size={18} /> Réviser les {cardsToReview.length} erreurs
+                </button>
             )}
 
             <button
-              onClick={handleReset}
-              className="w-full px-6 sm:px-8 py-3.5 sm:py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-lg touch-manipulation"
+                onClick={resetAll}
+                className={`w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${cardsToReview.length > 0 ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'btn-b-primary'}`}
             >
-              ↻ Recommencer tout le deck
+                <RotateCcw size={18} /> Recommencer tout
             </button>
-          </div>
         </div>
       </div>
     );
   }
 
-  if (!currentCard) {
-    return (
-      <div className="text-center p-12">
-        <p className="text-gray-600">Aucune flashcard disponible</p>
-      </div>
-    );
-  }
-
+  // --- AFFICHAGE CARTE ---
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-0">
-      {/* Mode Indicator */}
-      {reviewMode && (
-        <div className="mb-4 text-center">
-          <span className="inline-block px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm border border-orange-200">
-            🔄 Mode Révision • {totalCards} cartes à revoir
-          </span>
+    <div className="max-w-xl mx-auto perspective-1000">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+           <div className="h-full bg-slate-900 transition-all duration-300" style={{width: `${progress}%`}} />
         </div>
-      )}
-
-      {/* Progress */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs sm:text-sm font-medium text-gray-600">
-            Carte {currentIndex + 1} sur {totalCards}
-          </span>
-          <span className="text-xs sm:text-sm font-medium text-blue-600">
-            {reviewedCount}/{totalCards} ({progress}%)
-          </span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Category Badge */}
-      <div className="mb-4 text-center">
-        <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full border border-purple-200">
-          {currentCard.category}
+        <span className="text-xs font-bold text-slate-400">
+            {mode === 'review' ? 'Révision' : 'Carte'} {currentIndex + 1} / {activeDeck.length}
         </span>
       </div>
 
-      {/* Card */}
-      <div className="perspective-1000">
-        <div
-          className={`relative w-full h-[400px] sm:h-96 transition-transform duration-500 transform-style-3d cursor-pointer ${
-            isFlipped ? 'rotate-y-180' : ''
-          }`}
-          onClick={() => setIsFlipped(!isFlipped)}
-        >
-          {/* Front */}
-          <div className="absolute w-full h-full backface-hidden">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 h-full flex flex-col items-center justify-center text-white">
-              <p className="text-xs sm:text-sm uppercase tracking-wide mb-4 opacity-80">
-                Question
-              </p>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-6 sm:mb-8 px-2 leading-relaxed">
-                {currentCard.front}
-              </h2>
-              <p className="text-xs sm:text-sm opacity-80 mt-auto">
-                👆 Appuyez pour voir la réponse
-              </p>
-            </div>
-          </div>
+      <div
+        className={`relative w-full h-96 cursor-pointer group transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}
+        onClick={() => setIsFlipped(!isFlipped)}
+      >
+        {/* RECTO */}
+        <div className="absolute w-full h-full backface-hidden bg-white border-2 border-slate-200 rounded-[2.5rem] shadow-lg hover:shadow-xl transition-all flex flex-col items-center justify-center p-8 text-center">
+           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Question</span>
+           <h3 className="text-2xl font-extrabold text-slate-900">{currentCard.front}</h3>
+           <div className="absolute bottom-8 text-slate-400 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">Retourner ↻</div>
+        </div>
 
-          {/* Back */}
-          <div className="absolute w-full h-full backface-hidden rotate-y-180">
-            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 h-full flex flex-col items-center justify-center text-white">
-              <p className="text-xs sm:text-sm uppercase tracking-wide mb-4 opacity-80">
-                Réponse
-              </p>
-              <div className="text-base sm:text-lg md:text-xl text-center mb-6 sm:mb-8 px-2 leading-relaxed">
-                {currentCard.back}
-              </div>
-
-              {!reviewedCards.has(activeIndices[currentIndex]) && (
-                <div className="flex gap-3 sm:gap-4 mt-auto w-full px-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemembered(false);
-                    }}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 sm:px-6 py-3.5 sm:py-4 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl sm:rounded-2xl font-bold transition-all active:scale-95 shadow-lg text-sm sm:text-base touch-manipulation"
-                  >
-                    <XCircle size={20} />
-                    <span>À revoir</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemembered(true);
-                    }}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 sm:px-6 py-3.5 sm:py-4 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white rounded-xl sm:rounded-2xl font-bold transition-all active:scale-95 shadow-lg text-sm sm:text-base touch-manipulation"
-                  >
-                    <CheckCircle size={20} />
-                    <span>Je sais</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* VERSO */}
+        <div className="absolute w-full h-full backface-hidden rotate-y-180 bg-slate-900 rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center p-8 text-center text-white">
+           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6">Réponse</span>
+           <p className="text-xl font-medium leading-relaxed">{currentCard.back}</p>
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between mt-6">
-        <button
-          onClick={handlePrevious}
-          disabled={currentIndex === 0}
-          className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-3 text-gray-600 hover:text-gray-900 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all rounded-xl font-medium touch-manipulation"
-        >
-          <ChevronLeft size={24} />
-          <span className="hidden sm:inline">Précédent</span>
+      <div className={`mt-8 flex gap-4 transition-opacity duration-300 ${isFlipped ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <button onClick={() => handleResponse(false)} className="flex-1 btn-b-secondary border-red-200 text-red-600 hover:bg-red-50">
+          <X size={20} /> À revoir
         </button>
-
-        <button
-          onClick={handleReset}
-          className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-3 text-gray-600 hover:text-gray-900 active:bg-gray-100 transition-all rounded-xl font-medium touch-manipulation"
-        >
-          <RotateCcw size={20} />
-          <span className="hidden sm:inline">Reset</span>
-        </button>
-
-        <button
-          onClick={handleNext}
-          disabled={currentIndex === activeIndices.length - 1}
-          className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-3 text-gray-600 hover:text-gray-900 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all rounded-xl font-medium touch-manipulation"
-        >
-          <span className="hidden sm:inline">Suivant</span>
-          <ChevronRight size={24} />
+        <button onClick={() => handleResponse(true)} className="flex-1 btn-b-primary bg-green-600 border-green-800 hover:bg-green-500">
+          <Check size={20} /> Je savais
         </button>
       </div>
 
       <style jsx>{`
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-        .transform-style-3d {
-          transform-style: preserve-3d;
-        }
-        .backface-hidden {
-          backface-visibility: hidden;
-        }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
       `}</style>
     </div>
   );

@@ -1,0 +1,413 @@
+PARTIE 13 (Suite du code...)
+
+========================================
+FICHIER : frontend/components/Hero.tsx
+========================================
+'use client';
+
+import Link from 'next/link';
+import { Sparkles, Rocket, ArrowRight } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+
+export default function Hero() {
+  const { t } = useLanguage();
+
+  return (
+    <section
+      id="home"
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-100 pt-20"
+    >
+      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-24 py-20 text-center">
+        {/* Badge */}
+        <div className="inline-flex items-center space-x-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full mb-8">
+          <Sparkles size={16} />
+          <span className="text-sm font-medium">{t.hero.badge}</span>
+        </div>
+
+        {/* Main Heading */}
+        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6">
+          {t.hero.title}{' '}
+          <span className="bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+            {t.hero.titleHighlight}
+          </span>
+        </h1>
+
+        {/* Subheading */}
+        <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto mb-10">
+          {t.hero.subtitle}
+        </p>
+
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Link
+            href="/workspace"
+            className="group bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-xl hover:shadow-2xl flex items-center space-x-2"
+          >
+            <Rocket size={20} />
+            <span>{t.hero.cta1}</span>
+            <ArrowRight
+              size={20}
+              className="group-hover:translate-x-1 transition-transform"
+            />
+          </Link>
+
+          <Link
+            href="#about"
+            className="bg-white text-blue-600 px-8 py-4 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium border-2 border-blue-600"
+          >
+            {t.hero.cta2}
+          </Link>
+        </div>
+
+        {/* Stats */}
+        <div className="mt-20 grid grid-cols-2 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
+          <div>
+            <div className="text-3xl md:text-4xl font-bold text-blue-600">
+              {t.hero.stat1Title}
+            </div>
+            <div className="text-gray-600 mt-1">{t.hero.stat1Desc}</div>
+          </div>
+          <div>
+            <div className="text-3xl md:text-4xl font-bold text-blue-600">
+              {t.hero.stat2Title}
+            </div>
+            <div className="text-gray-600 mt-1">{t.hero.stat2Desc}</div>
+          </div>
+          <div className="col-span-2 md:col-span-1">
+            <div className="text-3xl md:text-4xl font-bold text-blue-600">
+              {t.hero.stat3Title}
+            </div>
+            <div className="text-gray-600 mt-1">{t.hero.stat3Desc}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+========================================
+FICHIER : frontend/components/Navbar.tsx
+========================================
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Menu, X, LogIn } from 'lucide-react'; // J'ai retiré Sun et Moon des imports
+import LanguageToggle from './LanguageToggle';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { UserButton, useUser } from '@clerk/nextjs';
+
+export default function Navbar() {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { t } = useLanguage();
+  const { isSignedIn, isLoaded } = useUser();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const navLinks = [
+    { name: t.nav.home, href: '#home' },
+    { name: t.nav.about, href: '#about' },
+    { name: t.nav.features, href: '#features' },
+    { name: t.nav.why, href: '#why' },
+    { name: t.nav.creator, href: '#creator' },
+  ];
+
+  return (
+    <nav
+      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+        isScrolled
+          ? 'bg-white/80 backdrop-blur-md shadow-md'
+          : 'bg-transparent'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-24">
+        <div className="flex items-center justify-between h-16 md:h-20">
+          {/* Logo */}
+          <Link href="/" className="flex items-center space-x-2">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg md:text-xl">S</span>
+            </div>
+            <span className="text-xl md:text-2xl font-bold text-gray-900">
+              Studia
+            </span>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-6">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className="text-gray-700 hover:text-blue-600 transition-colors duration-200 font-medium"
+              >
+                {link.name}
+              </Link>
+            ))}
+
+            {/* Sélecteur de langue uniquement (Plus de toggle Dark Mode ici) */}
+            <LanguageToggle />
+
+            {isLoaded && (
+              <>
+                {isSignedIn ? (
+                  <>
+                    <Link
+                      href="/workspace"
+                      className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                    >
+                      Workspace
+                    </Link>
+                    <UserButton afterSignOutUrl="/" />
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/sign-in"
+                      className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                    >
+                      <LogIn size={18} />
+                      <span>Connexion</span>
+                    </Link>
+                    <Link
+                      href="/sign-up"
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-all font-medium shadow-lg hover:shadow-xl"
+                    >
+                      Commencer
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden text-gray-700"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
+          <div className="px-6 py-4 space-y-3">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className="block text-gray-700 hover:text-blue-600 transition-colors font-medium py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {link.name}
+              </Link>
+            ))}
+
+            <div className="pt-3">
+              <LanguageToggle />
+            </div>
+
+            {isLoaded && (
+              <>
+                {isSignedIn ? (
+                  <>
+                    <Link
+                      href="/workspace"
+                      className="block text-center bg-blue-100 text-blue-700 px-6 py-2.5 rounded-lg font-medium mt-4"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Workspace
+                    </Link>
+                    <div className="flex justify-center mt-4">
+                      <UserButton afterSignOutUrl="/" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/sign-in"
+                      className="block text-center border-2 border-blue-600 text-blue-600 px-6 py-2.5 rounded-lg font-medium mt-4"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Connexion
+                    </Link>
+                    <Link
+                      href="/sign-up"
+                      className="block text-center bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-all font-medium"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Commencer
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+========================================
+FICHIER : frontend/components/LanguageToggle.tsx
+========================================
+'use client';
+
+import { useLanguage } from '@/contexts/LanguageContext';
+import { Languages } from 'lucide-react';
+
+export default function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+
+  return (
+    <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+      <Languages size={18} className="text-gray-600 ml-2" />
+      <button
+        onClick={() => setLanguage('en')}
+        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+          language === 'en'
+            ? 'bg-white text-primary-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        EN
+      </button>
+      <button
+        onClick={() => setLanguage('fr')}
+        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+          language === 'fr'
+            ? 'bg-white text-primary-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        FR
+      </button>
+    </div>
+  );
+}
+
+========================================
+FICHIER : frontend/components/InstallPWA.tsx
+========================================
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Download, X } from 'lucide-react';
+
+export default function InstallPWA() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  useEffect(() => {
+    // Écouter l'événement beforeinstallprompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+
+      // Vérifier si déjà installé ou si l'utilisateur a refusé
+      const hasDeclined = localStorage.getItem('pwa-install-declined');
+      const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+
+      if (!hasDeclined && !isInstalled) {
+        // Attendre 10 secondes avant d'afficher
+        setTimeout(() => {
+          setShowInstallPrompt(true);
+        }, 10000);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Détecter si déjà installé
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('✅ App déjà installée');
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+
+    // Afficher le prompt d'installation
+    deferredPrompt.prompt();
+
+    // Attendre le choix de l'utilisateur
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User choice: ${outcome}`);
+
+    if (outcome === 'accepted') {
+      console.log('✅ App installée');
+    } else {
+      console.log('❌ Installation refusée');
+      localStorage.setItem('pwa-install-declined', 'true');
+    }
+
+    setDeferredPrompt(null);
+    setShowInstallPrompt(false);
+  };
+
+  const handleDismiss = () => {
+    setShowInstallPrompt(false);
+    localStorage.setItem('pwa-install-declined', 'true');
+  };
+
+  if (!showInstallPrompt) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 animate-slide-up">
+      <div className="max-w-md mx-auto bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="p-6 text-gray-900 relative">
+          <button
+            onClick={handleDismiss}
+            className="absolute top-4 right-4 text-gray-900/80 hover:text-white"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="flex items-start space-x-4 pr-8">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Download size={24} />
+            </div>
+
+            <div className="flex-1">
+              <h3 className="text-lg font-bold mb-1">
+                📱 Installer Studia
+              </h3>
+              <p className="text-sm text-blue-100 mb-4">
+                Installez l'app pour un accès rapide et une expérience optimale
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleInstallClick}
+                  className="px-6 py-2.5 bg-white text-blue-600 rounded-lg font-bold hover:bg-blue-50 transition-all active:scale-95"
+                >
+                  Installer
+                </button>
+                <button
+                  onClick={handleDismiss}
+                  className="px-6 py-2.5 bg-white/20 text-gray-900 rounded-lg font-semibold hover:bg-white/30 transition-all active:scale-95"
+                >
+                  Plus tard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

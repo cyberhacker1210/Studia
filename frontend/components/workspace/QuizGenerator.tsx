@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Brain, Zap } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import { generateQuizFromImage, Quiz } from '@/lib/api';
 import { saveCourse } from '@/lib/courseService';
@@ -24,132 +24,73 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
     setError(null);
   };
 
-  const handleClear = () => {
-    setSelectedImage(null);
-    setError(null);
-  };
-
   const handleGenerateQuiz = async () => {
     if (!selectedImage || !user) return;
-
     try {
       setLoading(true);
-      setError(null);
-
-      // 1. Générer le quiz (qui inclut le texte extrait)
-      console.log('✨ Génération du quiz...');
       const quiz = await generateQuizFromImage(selectedImage, numQuestions, difficulty);
-      console.log('✅ Quiz généré');
 
-      // 2. Sauvegarder le texte extrait
+      // Sauvegarde auto
       if (quiz.extractedText) {
-          console.log('💾 Sauvegarde du cours...');
-
-          // 👇 CORRECTION ICI : On ajoute un titre généré automatiquement comme 3ème argument
-          const autoTitle = `Quiz généré - ${new Date().toLocaleDateString('fr-FR')}`;
-
-          await saveCourse(user.id, quiz.extractedText, autoTitle);
-
-          console.log('✅ Cours sauvegardé');
-        }
-
+          await saveCourse(user.id, quiz.extractedText, `Quiz Photo - ${new Date().toLocaleDateString()}`);
+      }
       onQuizGenerated(quiz);
-    } catch (err) {
-      console.error('Erreur:', err);
-      setError(err instanceof Error ? err.message : 'Erreur lors de la génération du quiz');
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Image Upload */}
-      <ImageUpload
-        onImageSelected={handleImageSelected}
-        selectedImage={selectedImage}
-        onClear={handleClear}
-      />
+    <div className="space-y-8">
+      <ImageUpload onImageSelected={handleImageSelected} selectedImage={selectedImage} onClear={() => setSelectedImage(null)} />
 
-      {/* Settings */}
       {selectedImage && (
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">⚙️ Paramètres du Quiz</h3>
+        <div className="card-b animate-in slide-in-from-bottom-4">
+          <h3 className="text-xl font-bold text-slate-900 mb-8 flex items-center gap-2">
+              <Brain size={24} className="text-blue-600"/> Configuration
+          </h3>
 
-          {/* Number of Questions */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Nombre de questions : <span className="text-blue-600 font-bold">{numQuestions}</span>
-            </label>
-            <input
-              type="range"
-              min="3"
-              max="15"
-              value={numQuestions}
-              onChange={(e) => setNumQuestions(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-              disabled={loading}
-            />
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>3</span>
-              <span>15</span>
+          <div className="mb-8">
+            <div className="flex justify-between mb-4 font-bold text-slate-700">
+                <span>Nombre de questions</span>
+                <span className="text-blue-600">{numQuestions}</span>
             </div>
+            <input type="range" min="3" max="15" value={numQuestions} onChange={(e) => setNumQuestions(Number(e.target.value))} className="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-slate-900" disabled={loading} />
           </div>
 
-          {/* Difficulty */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Difficulté
-            </label>
-            <div className="flex gap-3">
+          <div className="mb-8">
+            <label className="block font-bold text-slate-700 mb-4">Difficulté</label>
+            <div className="grid grid-cols-3 gap-3">
               {(['easy', 'medium', 'hard'] as const).map((level) => (
                 <button
                   key={level}
                   onClick={() => setDifficulty(level)}
                   disabled={loading}
-                  className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all transform hover:scale-105 ${
+                  className={`py-3 rounded-xl font-bold text-sm transition-all ${
                     difficulty === level
-                      ? 'bg-blue-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-slate-900 text-white shadow-lg scale-105'
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
                   }`}
                 >
-                  {level === 'easy' && '😊 Facile'}
-                  {level === 'medium' && '🎯 Moyen'}
-                  {level === 'hard' && '🔥 Difficile'}
+                  {level === 'easy' && 'Facile'}
+                  {level === 'medium' && 'Moyen'}
+                  {level === 'hard' && 'Difficile'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Generate Button */}
           <button
             onClick={handleGenerateQuiz}
             disabled={loading || !user}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+            className="w-full btn-b-primary py-4 text-lg"
           >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" size={20} />
-                <span>Génération en cours...</span>
-              </>
-            ) : (
-              <>
-                <span>✨ Générer le Quiz</span>
-              </>
-            )}
+            {loading ? <><Loader2 className="animate-spin"/> Création...</> : <><Zap/> Générer le Quiz</>}
           </button>
 
-          {/* Info message */}
-          <p className="mt-3 text-sm text-gray-500 text-center">
-            💾 Le texte du cours sera automatiquement extrait et sauvegardé
-          </p>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">❌ {error}</p>
-            </div>
-          )}
+          {error && <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl font-bold text-center">{error}</div>}
         </div>
       )}
     </div>

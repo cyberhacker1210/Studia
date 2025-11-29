@@ -1,0 +1,302 @@
+PARTIE 5 (Suite du code...)
+
+========================================
+FICHIER : frontend/app/workspace/chat/page.tsx
+========================================
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { getUserCourses, Course } from '@/lib/courseService';
+import CourseChat from '@/components/workspace/CourseChat';
+import { MessageSquare, BookOpen, ArrowLeft, Loader2, Bot } from 'lucide-react';
+
+export default function ChatPage() {
+  const { user } = useUser();
+  const router = useRouter();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) loadCourses();
+  }, [user]);
+
+  const loadCourses = async () => {
+    if (!user) return;
+    try {
+      const data = await getUserCourses(user.id);
+      setCourses(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-slate-900 animate-spin" />
+            <span className="text-slate-400 text-sm font-medium">Chargement de votre assistant...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white text-slate-900">
+      <div className="max-w-6xl mx-auto px-6 py-8 h-screen flex flex-col">
+
+        {/* Header */}
+        <header className="flex items-center justify-between mb-8 shrink-0">
+            <div className="flex items-center gap-4">
+                <button
+                onClick={() => selectedCourse ? setSelectedCourse(null) : router.push('/workspace')}
+                className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+                >
+                <ArrowLeft size={18} />
+                </button>
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900">Tuteur Socratique</h1>
+                    <p className="text-slate-500 text-sm">Posez des questions sur vos cours</p>
+                </div>
+            </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm relative flex flex-col">
+
+            {!selectedCourse ? (
+            // VIEW: SELECT COURSE
+            <div className="flex-1 overflow-y-auto p-8 md:p-12">
+                <h2 className="text-xl font-bold mb-6 text-center">Choisissez un sujet</h2>
+
+                {courses.length === 0 ? (
+                <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                    <BookOpen size={40} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500 font-medium mb-4">Aucun cours disponible.</p>
+                    <button
+                    onClick={() => router.push('/workspace/capture')}
+                    className="text-slate-900 font-bold border-b-2 border-slate-900 hover:border-transparent transition-all"
+                    >
+                    Créer mon premier cours
+                    </button>
+                </div>
+                ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {courses.map(course => (
+                    <button
+                        key={course.id}
+                        onClick={() => setSelectedCourse(course)}
+                        className="group flex flex-col items-start p-6 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 hover:shadow-md transition-all text-left h-full"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                            <BookOpen size={18} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 mb-2 line-clamp-2">
+                        {course.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-auto pt-4 border-t border-slate-100 w-full">
+                        Ajouté le {new Date(course.created_at).toLocaleDateString()}
+                        </p>
+                    </button>
+                    ))}
+                </div>
+                )}
+            </div>
+            ) : (
+            // VIEW: CHAT
+            <div className="flex flex-col h-full animate-in fade-in">
+                {/* Chat Header */}
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center">
+                            <Bot size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-900">{selectedCourse.title}</span>
+                            <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider">En ligne</span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => router.push(`/workspace/courses/${selectedCourse.id}`)}
+                        className="text-xs font-bold text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition-all"
+                    >
+                        Voir le cours
+                    </button>
+                </div>
+
+                {/* Chat Area */}
+                <div className="flex-1 overflow-hidden relative">
+                    <CourseChat
+                        courseText={selectedCourse.extracted_text}
+                        courseTitle={selectedCourse.title}
+                    />
+                </div>
+            </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================
+FICHIER : frontend/app/workspace/quiz/page.tsx
+========================================
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, FileQuestion, History, Sparkles } from 'lucide-react';
+
+export default function QuizHubPage() {
+  const router = useRouter();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8 pb-20">
+
+        {/* Back Button */}
+        <button
+          onClick={() => router.push('/workspace')}
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 sm:mb-6 transition-colors active:scale-95 text-sm sm:text-base"
+        >
+          <ArrowLeft size={18} className="mr-1.5 sm:mr-2" />
+          <span>Retour</span>
+        </button>
+
+        {/* Header - Minimaliste */}
+        <div className="text-center mb-6 sm:mb-10 px-2">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-lg mb-3 sm:mb-4">
+            <FileQuestion className="text-gray-900" size={28} />
+          </div>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2 leading-tight">
+            Quiz Generator 🎯
+          </h1>
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed">
+            Créez ou consultez vos quiz
+          </p>
+        </div>
+
+        {/* Options Grid - Compact */}
+        <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto mb-8 px-2">
+
+          {/* Option 1: Créer un Quiz */}
+          <button
+            onClick={() => router.push('/workspace/quiz/generate')}
+            className="group relative bg-white rounded-2xl shadow-lg border-2 border-transparent hover:border-blue-500 active:scale-[0.98] transition-all p-5 sm:p-6 text-left overflow-hidden"
+          >
+            {/* Subtle background decoration */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100 rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
+
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform shadow-md">
+                <Sparkles className="text-gray-900" size={24} />
+              </div>
+
+              {/* Badge */}
+              <span className="inline-block px-2.5 py-0.5 sm:px-3 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full mb-3">
+                Populaire ⭐
+              </span>
+
+              {/* Title */}
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 leading-tight group-hover:text-blue-600 transition-colors">
+                Créer un Quiz
+              </h2>
+
+              {/* Description */}
+              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-4">
+                Sélectionnez un cours et générez un quiz personnalisé
+              </p>
+
+              {/* Arrow */}
+              <div className="flex items-center text-blue-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+                <span>Commencer</span>
+                <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
+
+          {/* Option 2: Historique */}
+          <button
+            onClick={() => router.push('/workspace/quiz/history')}
+            className="group relative bg-white rounded-2xl shadow-lg border-2 border-transparent hover:border-purple-500 active:scale-[0.98] transition-all p-5 sm:p-6 text-left overflow-hidden"
+          >
+            {/* Subtle background decoration */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-100 rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
+
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform shadow-md">
+                <History className="text-gray-900" size={24} />
+              </div>
+
+              {/* Badge */}
+              <span className="inline-block px-2.5 py-0.5 sm:px-3 sm:py-1 bg-purple-100 text-purple-700 text-[10px] sm:text-xs font-semibold rounded-full mb-3">
+                Statistiques 📊
+              </span>
+
+              {/* Title */}
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 leading-tight group-hover:text-purple-600 transition-colors">
+                Mon Historique
+              </h2>
+
+              {/* Description */}
+              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-4">
+                Consultez vos quiz précédents et vos scores
+              </p>
+
+              {/* Arrow */}
+              <div className="flex items-center text-purple-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+                <span>Voir l'historique</span>
+                <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
+
+        </div>
+
+        {/* Info Card - Minimaliste */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 max-w-2xl mx-auto">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Sparkles className="text-blue-600" size={16} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-gray-900 mb-1.5">
+                Comment ça marche ?
+              </h3>
+              <ul className="space-y-1.5 text-gray-600 text-xs sm:text-sm leading-relaxed">
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2 flex-shrink-0">1.</span>
+                  <span>Choisissez un cours sauvegardé</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2 flex-shrink-0">2.</span>
+                  <span>Configurez le nombre de questions</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2 flex-shrink-0">3.</span>
+                  <span>L'IA génère le quiz instantanément</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2 flex-shrink-0">4.</span>
+                  <span>Sauvegardez vos résultats</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

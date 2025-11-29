@@ -1,0 +1,414 @@
+PARTIE 25 (Suite du code...)
+
+========================================
+FICHIER : frontend/lib/api.ts
+========================================
+// Configuration de l'API
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+console.log('🔧 API Configuration:', {
+  API_BASE_URL,
+  env: process.env.NEXT_PUBLIC_API_URL
+});
+
+// ============================================
+// Types
+// ============================================
+
+export interface Quiz {
+  id: string;
+  source: string;
+  difficulty: string;
+  questions: QuizQuestion[];
+  createdAt: string;
+  extractedText: string;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+}
+
+export interface Flashcard {
+  front: string;
+  back: string;
+  category: string;
+  difficulty: string;
+}
+
+export interface FlashcardDeck {
+  id: string;
+  flashcards: Flashcard[];
+  createdAt: string;
+}
+
+export interface ExtractedPage {
+  pageNumber: number;
+  text: string;
+  wordCount: number;
+}
+
+export interface ExtractTextResult {
+  totalImages: number;
+  pagesExtracted: number;
+  extractedText: string;
+  pages: ExtractedPage[];
+}
+
+// ============================================
+// Helper: Better error handling
+// ============================================
+
+async function handleApiResponse(response: Response): Promise<any> {
+  const contentType = response.headers.get('content-type');
+
+  // Si pas de content-type ou pas JSON
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await response.text();
+    console.error('❌ Non-JSON Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType,
+      body: text.substring(0, 500)
+    });
+    throw new Error(`Erreur serveur (${response.status}): Réponse non-JSON`);
+  }
+
+  // Tenter de parser le JSON
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    console.error('❌ JSON Parse Error:', e);
+    throw new Error('Impossible de parser la réponse du serveur');
+  }
+
+  // Si erreur HTTP
+  if (!response.ok) {
+    console.error('❌ API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      data
+    });
+
+    const errorMessage = data?.detail || data?.message || `Erreur HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
+
+// ============================================
+// API Functions
+// ============================================
+
+/**
+ * Extract text from multiple images
+ */
+export async function extractTextFromMultipleImages(
+  images: string[]
+): Promise<ExtractTextResult> {
+  console.log('🌐 API Call: Extract text from images', {
+    count: images.length,
+    url: `${API_BASE_URL}/api/extract-text`,
+    firstImagePreview: images[0]?.substring(0, 50) + '...'
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/extract-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        images: images,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Extract text success', {
+      pagesExtracted: data.pagesExtracted,
+      totalChars: data.extractedText?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/extract-text`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate quiz from text
+ */
+export async function generateQuizFromText(
+  courseText: string,
+  numQuestions: number = 5,
+  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+): Promise<Quiz> {
+  console.log('🌐 API Call: Generate quiz from text', {
+    numQuestions,
+    difficulty,
+    textLength: courseText.length,
+    url: `${API_BASE_URL}/api/quiz/generate-from-text`
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course_text: courseText,
+        num_questions: numQuestions,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Quiz generated', {
+      questionsCount: data.questions?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/quiz/generate-from-text`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate quiz from image
+ */
+export async function generateQuizFromImage(
+  image: string,
+  numQuestions: number = 5,
+  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+): Promise<Quiz> {
+  console.log('🌐 API Call: Generate quiz from image', {
+    numQuestions,
+    difficulty,
+    imagePreview: image.substring(0, 50) + '...',
+    url: `${API_BASE_URL}/api/quiz/generate-from-image`
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: image,
+        num_questions: numQuestions,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Quiz generated from image', {
+      questionsCount: data.questions?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/quiz/generate-from-image`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate flashcards from text
+ */
+export async function generateFlashcards(
+  courseText: string,
+  numCards: number = 10,
+  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+): Promise<FlashcardDeck> {
+  console.log('🌐 API Call: Generate flashcards', {
+    numCards,
+    difficulty,
+    textLength: courseText.length,
+    url: `${API_BASE_URL}/api/flashcards/generate`
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/flashcards/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course_text: courseText,
+        num_cards: numCards,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await handleApiResponse(response);
+
+    console.log('✅ API Response: Flashcards generated', {
+      cardsCount: data.flashcards?.length
+    });
+
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ API Error:', {
+      message: error.message,
+      stack: error.stack,
+      url: `${API_BASE_URL}/api/flashcards/generate`
+    });
+    throw error;
+  }
+}
+
+/**
+ * Check API health
+ */
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    console.log('🏥 Checking API health:', `${API_BASE_URL}/api/health`);
+
+    const response = await fetch(`${API_BASE_URL}/api/health`, {
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ API is healthy:', data);
+      return true;
+    } else {
+      console.error('❌ API health check failed:', response.status);
+      return false;
+    }
+  } catch (error: any) {
+    console.error('❌ API Health Check Failed:', {
+      message: error.message,
+      url: `${API_BASE_URL}/api/health`
+    });
+    return false;
+  }
+}
+
+========================================
+FICHIER : frontend/lib/exportService.ts
+========================================
+import jsPDF from 'jspdf';
+
+export async function exportCourseToPDF(
+  title: string,
+  content: string,
+  metadata?: { date?: string; author?: string }
+) {
+  const doc = new jsPDF();
+
+  // Header
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, 20, 20);
+
+  // Metadata
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100);
+  if (metadata?.date) {
+    doc.text(`Date: ${metadata.date}`, 20, 30);
+  }
+  if (metadata?.author) {
+    doc.text(`Auteur: ${metadata.author}`, 20, 35);
+  }
+
+  // Content
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  const lines = doc.splitTextToSize(content, 170);
+  doc.text(lines, 20, 45);
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(150);
+    doc.text(`Page ${i} sur ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Généré par Studia - AI Learning', 105, 290, { align: 'center' });
+  }
+
+  doc.save(`${title}.pdf`);
+}
+
+export async function exportFlashcardsToPDF(
+  title: string,
+  flashcards: { front: string; back: string }[]
+) {
+  const doc = new jsPDF();
+
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, 105, 20, { align: 'center' });
+
+  let yPosition = 40;
+
+  flashcards.forEach((card, index) => {
+    if (yPosition > 250) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    // Card number
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Carte ${index + 1}`, 20, yPosition);
+
+    yPosition += 10;
+
+    // Front
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Question:', 20, yPosition);
+    doc.setFont('helvetica', 'normal');
+    const frontLines = doc.splitTextToSize(card.front, 170);
+    doc.text(frontLines, 20, yPosition + 5);
+
+    yPosition += frontLines.length * 5 + 10;
+
+    // Back
+    doc.setFont('helvetica', 'bold');
+    doc.text('Réponse:', 20, yPosition);
+    doc.setFont('helvetica', 'normal');
+    const backLines = doc.splitTextToSize(card.back, 170);
+    doc.text(backLines, 20, yPosition + 5);
+
+    yPosition += backLines.length * 5 + 15;
+
+    // Separator
+    doc.setDrawColor(200);
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 10;
+  });
+
+  doc.save(`${title}.pdf`);
+}

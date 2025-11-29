@@ -1,0 +1,265 @@
+PARTIE 26 (Suite du code...)
+
+========================================
+FICHIER : frontend/lib/translations.ts
+========================================
+export const translations = {
+  en: {
+    nav: {
+      home: 'Home',
+      about: 'About',
+      features: 'Features',
+      why: 'Why Studia',
+      creator: 'Creator',
+      workspace: 'Workspace',
+      joinWaitlist: 'Join Waitlist',
+    },
+    hero: {
+      badge: 'AI-Powered Learning Platform',
+      title: 'The Future of',
+      titleHighlight: 'Learning',
+      subtitle: 'Studia automates repetitive learning tasks with AI. Create flashcards, generate quizzes, and accelerate your learning journey—effortlessly.',
+      cta1: 'Get Early Access',
+      cta2: 'Learn More',
+      stat1Title: 'AI-Powered',
+      stat1Desc: 'Smart Automation',
+      stat2Title: '100%',
+      stat2Desc: 'Free to Start',
+      stat3Title: '∞',
+      stat3Desc: 'Possibilities',
+    },
+    about: {
+      title: 'What is',
+      titleHighlight: 'Studia?',
+      subtitle: 'Studia is an AI-powered learning platform designed to revolutionize how people study and retain information.',
+      mission: 'Our Mission',
+      missionDesc: 'To become the Microsoft of learning—empowering everyone with intelligent tools that make education accessible, efficient, and effective.',
+      vision: 'Our Vision',
+      visionDesc: 'A world where learning is personalized, automated, and optimized through artificial intelligence—saving time and boosting results.',
+      approach: 'Our Approach',
+      approachDesc: 'Leverage cutting-edge AI to automate tedious tasks like flashcard creation and quiz generation, letting you focus on actual learning.',
+    },
+    features: {
+      title: 'Powerful',
+      titleHighlight: 'Features',
+      subtitle: 'Everything you need to supercharge your learning, powered by artificial intelligence.',
+      feature1: 'AI Flashcard Generator',
+      feature1Desc: 'Transform any text, PDF, or notes into perfectly structured flashcards in seconds.',
+      feature2: 'Smart Quiz Creation',
+      feature2Desc: 'Generate custom quizzes tailored to your learning material with AI precision.',
+      feature3: 'Spaced Repetition',
+      feature3Desc: 'Optimize retention with intelligent spaced repetition algorithms.',
+      feature4: 'Progress Tracking',
+      feature4Desc: 'Monitor your learning journey with detailed analytics and insights.',
+      feature5: 'Smart Summaries',
+      feature5Desc: 'Get concise, AI-generated summaries of complex topics instantly.',
+      feature6: 'Personalized Learning',
+      feature6Desc: 'Adaptive learning paths that adjust to your pace and preferences.',
+    },
+    why: {
+      title: 'Why Choose',
+      titleHighlight: 'Studia?',
+      subtitle: 'Learning shouldn\'t be a battle against tedious tasks. Studia eliminates the busywork so you can focus on what truly matters: understanding and mastering your subject.',
+      benefit1: 'Save Hours Every Week',
+      benefit1Desc: 'Stop wasting time manually creating study materials. Let AI do the heavy lifting.',
+      benefit2: 'Learn Faster & Retain More',
+      benefit2Desc: 'Science-backed techniques like spaced repetition ensure information sticks.',
+      benefit3: 'Study Smarter, Not Harder',
+      benefit3Desc: 'Focus on understanding concepts while Studia handles organization and review.',
+      benefit4: 'Accessible Anywhere, Anytime',
+      benefit4Desc: 'Web-based platform accessible from any device—study on your terms.',
+      benefit5: 'Completely Free to Start',
+      benefit5Desc: 'Get started with powerful features at no cost. Premium options available later.',
+      benefit6: 'Built by Learners, for Learners',
+      benefit6Desc: 'Designed by someone who understands the struggles of modern education.',
+    },
+    creator: {
+      title: 'Meet the',
+      titleHighlight: 'Creator',
+      subtitle: 'Built with passion and dedication to transform learning',
+      role: 'Founder & Developer',
+      bio: 'As a passionate developer and lifelong learner, I created Studia to solve a problem I faced daily: the time-consuming nature of creating study materials. By combining my love for technology and education, Studia was born—a platform that empowers learners worldwide to study smarter, not harder.',
+      quote: '"Education is the most powerful weapon we can use to change the world. Studia is my contribution to that change."',
+    },
+    cta: {
+      title: 'Ready to Transform Your Learning?',
+      subtitle: 'Join the waitlist and be among the first to experience the future of AI-powered education.',
+      placeholder: 'Enter your email',
+      button: 'Join Waitlist',
+      success: 'Thanks! You\'re on the waitlist. Check your email!',
+      trust1: 'No credit card required',
+      trust2: 'Free to start',
+      trust3: 'Cancel anytime',
+    },
+    footer: {
+      description: 'AI-powered learning platform designed to revolutionize how people study and retain information.',
+      quickLinks: 'Quick Links',
+      legal: 'Legal',
+      privacy: 'Privacy Policy',
+      terms: 'Terms of Service',
+      cookies: 'Cookie Policy',
+      rights: 'All rights reserved.',
+      madeWith: 'Made with',
+      by: 'by Daniel Leo',
+    },
+  },
+  fr: {
+    nav: {
+      home: 'Accueil',
+      about: 'À propos',
+      features: 'Fonctionnalités',
+      why: 'Pourquoi Studia',
+      creator: 'Créateur',
+      workspace: 'Workspace',
+      joinWaitlist: 'Liste d\'attente',
+    },
+    hero: {
+      badge: 'Plateforme d\'apprentissage IA',
+      title: 'L\'avenir de',
+      titleHighlight: 'l\'apprentissage',
+      subtitle: 'Studia automatise les tâches d\'apprentissage répétitives avec l\'IA. Créez des cartes mémo, générez des quiz et accélérez votre parcours d\'apprentissage—sans effort.',
+      cta1: 'Accès anticipé',
+      cta2: 'En savoir plus',
+      stat1Title: 'Propulsé par IA',
+      stat1Desc: 'Automation intelligente',
+      stat2Title: '100%',
+      stat2Desc: 'Gratuit pour commencer',
+      stat3Title: '∞',
+      stat3Desc: 'Possibilités',
+    },
+    about: {
+      title: 'Qu\'est-ce que',
+      titleHighlight: 'Studia ?',
+      subtitle: 'Studia est une plateforme d\'apprentissage propulsée par l\'IA conçue pour révolutionner la façon dont les gens étudient et retiennent l\'information.',
+      mission: 'Notre Mission',
+      missionDesc: 'Devenir le Microsoft de l\'apprentissage—donner à chacun des outils intelligents qui rendent l\'éducation accessible, efficace et performante.',
+      vision: 'Notre Vision',
+      visionDesc: 'Un monde où l\'apprentissage est personnalisé, automatisé et optimisé grâce à l\'intelligence artificielle—économisant du temps et améliorant les résultats.',
+      approach: 'Notre Approche',
+      approachDesc: 'Utiliser l\'IA de pointe pour automatiser les tâches fastidieuses comme la création de cartes mémo et de quiz, vous permettant de vous concentrer sur l\'apprentissage réel.',
+    },
+    features: {
+      title: 'Fonctionnalités',
+      titleHighlight: 'puissantes',
+      subtitle: 'Tout ce dont vous avez besoin pour booster votre apprentissage, propulsé par l\'intelligence artificielle.',
+      feature1: 'Générateur de cartes IA',
+      feature1Desc: 'Transformez n\'importe quel texte, PDF ou notes en cartes mémo parfaitement structurées en quelques secondes.',
+      feature2: 'Création de quiz intelligents',
+      feature2Desc: 'Générez des quiz personnalisés adaptés à votre matériel d\'apprentissage avec précision IA.',
+      feature3: 'Répétition espacée',
+      feature3Desc: 'Optimisez la rétention avec des algorithmes de répétition espacée intelligents.',
+      feature4: 'Suivi des progrès',
+      feature4Desc: 'Surveillez votre parcours d\'apprentissage avec des analyses et insights détaillés.',
+      feature5: 'Résumés intelligents',
+      feature5Desc: 'Obtenez des résumés concis générés par IA de sujets complexes instantanément.',
+      feature6: 'Apprentissage personnalisé',
+      feature6Desc: 'Parcours d\'apprentissage adaptatifs qui s\'ajustent à votre rythme et préférences.',
+    },
+    why: {
+      title: 'Pourquoi choisir',
+      titleHighlight: 'Studia ?',
+      subtitle: 'L\'apprentissage ne devrait pas être une bataille contre des tâches fastidieuses. Studia élimine le travail répétitif pour que vous puissiez vous concentrer sur ce qui compte vraiment : comprendre et maîtriser votre sujet.',
+      benefit1: 'Économisez des heures chaque semaine',
+      benefit1Desc: 'Arrêtez de perdre du temps à créer manuellement du matériel d\'étude. Laissez l\'IA faire le travail.',
+      benefit2: 'Apprenez plus vite et retenez plus',
+      benefit2Desc: 'Des techniques scientifiques comme la répétition espacée garantissent que l\'information reste.',
+      benefit3: 'Étudiez plus intelligemment, pas plus dur',
+      benefit3Desc: 'Concentrez-vous sur la compréhension des concepts pendant que Studia gère l\'organisation et la révision.',
+      benefit4: 'Accessible partout, à tout moment',
+      benefit4Desc: 'Plateforme web accessible depuis n\'importe quel appareil—étudiez à vos conditions.',
+      benefit5: 'Complètement gratuit pour commencer',
+      benefit5Desc: 'Commencez avec des fonctionnalités puissantes sans frais. Options premium disponibles plus tard.',
+      benefit6: 'Construit par des apprenants, pour des apprenants',
+      benefit6Desc: 'Conçu par quelqu\'un qui comprend les défis de l\'éducation moderne.',
+    },
+    creator: {
+      title: 'Rencontrez le',
+      titleHighlight: 'créateur',
+      subtitle: 'Construit avec passion et dévouement pour transformer l\'apprentissage',
+      role: 'Fondateur & Développeur',
+      bio: 'En tant que développeur passionné et apprenant à vie, j\'ai créé Studia pour résoudre un problème auquel je faisais face quotidiennement : la nature chronophage de la création de matériel d\'étude. En combinant mon amour pour la technologie et l\'éducation, Studia est né—une plateforme qui permet aux apprenants du monde entier d\'étudier plus intelligemment, pas plus dur.',
+      quote: '"L\'éducation est l\'arme la plus puissante que nous pouvons utiliser pour changer le monde. Studia est ma contribution à ce changement."',
+    },
+    cta: {
+      title: 'Prêt à transformer votre apprentissage ?',
+      subtitle: 'Rejoignez la liste d\'attente et soyez parmi les premiers à découvrir l\'avenir de l\'éducation propulsée par l\'IA.',
+      placeholder: 'Entrez votre email',
+      button: 'Liste d\'attente',
+      success: 'Merci ! Vous êtes sur la liste d\'attente. Vérifiez votre email !',
+      trust1: 'Aucune carte de crédit requise',
+      trust2: 'Gratuit pour commencer',
+      trust3: 'Annulez à tout moment',
+    },
+    footer: {
+      description: 'Plateforme d\'apprentissage propulsée par l\'IA conçue pour révolutionner la façon dont les gens étudient et retiennent l\'information.',
+      quickLinks: 'Liens rapides',
+      legal: 'Légal',
+      privacy: 'Politique de confidentialité',
+      terms: 'Conditions d\'utilisation',
+      cookies: 'Politique des cookies',
+      rights: 'Tous droits réservés.',
+      madeWith: 'Fait avec',
+      by: 'par Daniel Leo',
+    },
+  },
+};
+
+export type Language = 'en' | 'fr';
+export type Translations = typeof translations.en;
+
+========================================
+FICHIER : frontend/lib/themeStore.ts
+========================================
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface ThemeStore {
+  isDark: boolean;
+  toggle: () => void;
+  setDark: (value: boolean) => void;
+}
+
+export const useTheme = create<ThemeStore>()(
+  persist(
+    (set) => ({
+      isDark: false,
+      toggle: () => set((state) => {
+        const newIsDark = !state.isDark;
+
+        // ✅ CORRECTION : Appliquer sur document.documentElement
+        if (typeof window !== 'undefined') {
+          if (newIsDark) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+          }
+        }
+
+        return { isDark: newIsDark };
+      }),
+      setDark: (value: boolean) => set(() => {
+        if (typeof window !== 'undefined') {
+          if (value) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+          }
+        }
+        return { isDark: value };
+      }),
+    }),
+    {
+      name: 'studia-theme',
+      // ✅ CORRECTION : Charger le theme au démarrage
+      onRehydrateStorage: () => (state) => {
+        if (typeof window !== 'undefined' && state?.isDark) {
+          document.documentElement.classList.add('dark');
+        }
+      },
+    }
+  )
+);

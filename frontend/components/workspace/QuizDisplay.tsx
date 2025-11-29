@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Quiz } from '@/lib/api';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, Check, X, AlertCircle } from 'lucide-react';
 
 interface QuizDisplayProps {
   quiz: Quiz;
@@ -10,120 +10,178 @@ interface QuizDisplayProps {
 }
 
 export default function QuizDisplay({ quiz, onComplete }: QuizDisplayProps) {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<number[]>(
-    new Array(quiz.questions.length).fill(-1)
-  );
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
+  const [answers, setAnswers] = useState<number[]>([]); // Stocke toutes les réponses
+  const [shake, setShake] = useState(false);
 
-  const question = quiz.questions[currentQuestion];
-  const isLastQuestion = currentQuestion === quiz.questions.length - 1;
-  const canGoNext = selectedAnswers[currentQuestion] !== -1;
+  // Sécurité anti-crash
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    return <div className="p-10 text-center font-bold text-red-500">Erreur: Quiz vide</div>;
+  }
 
-  const handleSelectAnswer = (optionIndex: number) => {
-    const newAnswers = [...selectedAnswers];
-    newAnswers[currentQuestion] = optionIndex;
-    setSelectedAnswers(newAnswers);
+  const question = quiz.questions[currentIdx];
+  const progress = Math.round(((currentIdx) / quiz.questions.length) * 100);
+
+  const handleCheck = () => {
+    if (selectedOption === null) return;
+
+    const isCorrect = selectedOption === question.correctAnswer;
+
+    if (isCorrect) {
+      setStatus('correct');
+      // Petit son "pop" imaginaire (l'animation le fait visuellement)
+    } else {
+      setStatus('incorrect');
+      setShake(true);
+      setTimeout(() => setShake(false), 500); // Reset shake après 500ms
+    }
+
+    // Sauvegarder la réponse pour ce tour
+    const newAnswers = [...answers];
+    newAnswers[currentIdx] = selectedOption;
+    setAnswers(newAnswers);
   };
 
-  const handleNext = () => {
-    if (isLastQuestion) {
-      onComplete(selectedAnswers);
+  const handleContinue = () => {
+    if (currentIdx < quiz.questions.length - 1) {
+      // Question suivante
+      setCurrentIdx(c => c + 1);
+      setSelectedOption(null);
+      setStatus('idle');
     } else {
-      setCurrentQuestion(currentQuestion + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Fin du quiz -> envoi des résultats
+      onComplete(answers);
     }
   };
 
-  const handlePrevious = () => {
-    setCurrentQuestion(currentQuestion - 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-      {/* Progress Bar */}
-      <div className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm sm:text-base font-semibold text-gray-700">
-            Question {currentQuestion + 1}/{quiz.questions.length}
-          </span>
-          <span className="text-sm sm:text-base font-bold text-blue-600">
-            {Math.round(((currentQuestion + 1) / quiz.questions.length) * 100)}%
-          </span>
+    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+
+      {/* Barre de Progression */}
+      <div className="mb-8">
+        <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+           <span>Question {currentIdx + 1} / {quiz.questions.length}</span>
+           <span>{progress}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+        <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
-            style={{
-              width: `${((currentQuestion + 1) / quiz.questions.length) * 100}%`,
-            }}
-          ></div>
+            className="h-full bg-slate-900 transition-all duration-500 ease-out rounded-full"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
 
-      {/* Question */}
-      <div className="p-4 sm:p-6 md:p-8">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-6 sm:mb-8 leading-snug">
+      {/* Carte Question */}
+      <div className={`bg-white border-2 rounded-[2.5rem] p-8 mb-6 shadow-sm transition-all duration-300 ${
+        status === 'incorrect' && shake ? 'animate-shake border-red-200' : 'border-slate-100'
+      }`}>
+        <h2 className="text-2xl font-extrabold text-slate-900 mb-8 leading-tight">
           {question.question}
         </h2>
 
-        {/* Options */}
-        <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-          {question.options.map((option, index) => (
+        <div className="space-y-3">
+          {question.options.map((option, index) => {
+            // Logique d'affichage des couleurs (État Idle vs État Correction)
+            let borderClass = "border-slate-200 hover:border-slate-300";
+            let bgClass = "hover:bg-slate-50";
+            let icon = <div className="w-6 h-6 rounded-full border-2 border-slate-300" />;
+            let textClass = "text-slate-600 group-hover:text-slate-900";
+
+            // ETAT 1 : SÉLECTION (Avant validation)
+            if (status === 'idle') {
+               if (selectedOption === index) {
+                 borderClass = "border-slate-900 shadow-md transform -translate-y-0.5";
+                 bgClass = "bg-slate-50";
+                 icon = <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-slate-900 flex items-center justify-center"><div className="w-2 h-2 bg-white rounded-full"/></div>;
+                 textClass = "text-slate-900";
+               }
+            }
+            // ETAT 2 : CORRECTION (Après validation)
+            else {
+               if (index === question.correctAnswer) {
+                 // La bonne réponse (toujours verte)
+                 borderClass = "border-green-500 bg-green-50";
+                 bgClass = "";
+                 icon = <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white"><Check size={14} strokeWidth={4}/></div>;
+                 textClass = "text-green-800";
+               } else if (index === selectedOption && status === 'incorrect') {
+                 // La mauvaise réponse sélectionnée (rouge)
+                 borderClass = "border-red-500 bg-red-50";
+                 bgClass = "";
+                 icon = <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white"><X size={14} strokeWidth={4}/></div>;
+                 textClass = "text-red-800";
+               } else {
+                 // Les autres options (grisées)
+                 borderClass = "border-slate-100 opacity-50";
+                 bgClass = "";
+               }
+            }
+
+            return (
+              <button
+                key={index}
+                disabled={status !== 'idle'} // Désactive le clic pendant la correction
+                onClick={() => setSelectedOption(index)}
+                className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 flex items-center gap-4 group ${borderClass} ${bgClass}`}
+              >
+                <div className="flex-shrink-0 mt-0.5">{icon}</div>
+                <span className={`font-bold text-lg leading-snug ${textClass}`}>{option}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Zone de Feedback & Bouton (Hauteur fixe pour éviter le saut) */}
+      <div className="min-h-[120px]">
+        {status === 'idle' ? (
+          <div className="flex justify-end pt-4">
             <button
-              key={index}
-              onClick={() => handleSelectAnswer(index)}
-              className={`w-full text-left px-4 sm:px-6 py-4 sm:py-5 rounded-xl sm:rounded-2xl border-2 transition-all duration-200 touch-manipulation active:scale-[0.98] ${
-                selectedAnswers[currentQuestion] === index
-                  ? 'border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-200'
-                  : 'border-gray-200 hover:border-gray-300 active:border-blue-400'
+              onClick={handleCheck}
+              disabled={selectedOption === null}
+              className="btn-b-primary px-10 py-4 text-lg transition-transform active:scale-95"
+            >
+              Valider
+            </button>
+          </div>
+        ) : (
+          // BOÎTE DE FEEDBACK ANIMÉE
+          <div className={`rounded-[2rem] p-6 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pop shadow-lg ${
+            status === 'correct' ? 'bg-green-100 text-green-900' : 'bg-red-50 text-red-900'
+          }`}>
+            <div className="text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2 font-black text-xl mb-1">
+                {status === 'correct' ? (
+                  <><Check size={28} strokeWidth={3}/> Correct !</>
+                ) : (
+                  <><AlertCircle size={28} strokeWidth={3}/> Oups !</>
+                )}
+              </div>
+
+              {/* Explication (si disponible) */}
+              {question.explanation ? (
+                 <p className="text-sm font-medium opacity-90 mt-1 max-w-md leading-relaxed">
+                    {question.explanation}
+                 </p>
+              ) : (
+                 <p className="text-sm font-medium opacity-90 mt-1">
+                    {status === 'correct' ? "Bien joué !" : "Regarde la correction ci-dessus."}
+                 </p>
+              )}
+            </div>
+
+            <button
+              onClick={handleContinue}
+              className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-white shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 ${
+                status === 'correct' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
               }`}
             >
-              <div className="flex items-center space-x-3 sm:space-x-4">
-                <div
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                    selectedAnswers[currentQuestion] === index
-                      ? 'border-blue-600 bg-blue-600 shadow-md'
-                      : 'border-gray-300'
-                  }`}
-                >
-                  {selectedAnswers[currentQuestion] === index && (
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-white rounded-full"></div>
-                  )}
-                </div>
-                <span className={`font-medium text-sm sm:text-base md:text-lg leading-relaxed ${
-                  selectedAnswers[currentQuestion] === index
-                    ? 'text-blue-900'
-                    : 'text-gray-700'
-                }`}>
-                  {option}
-                </span>
-              </div>
+              Continuer <ChevronRight size={20} />
             </button>
-          ))}
-        </div>
-
-        {/* Navigation */}
-        <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
-            className="flex items-center space-x-2 px-4 sm:px-6 py-3 sm:py-3.5 text-gray-600 hover:text-gray-900 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all rounded-xl touch-manipulation font-medium text-sm sm:text-base"
-          >
-            <ChevronLeft size={20} />
-            <span className="hidden sm:inline">Précédent</span>
-            <span className="sm:hidden">Préc.</span>
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={!canGoNext}
-            className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 px-6 sm:px-8 py-3.5 sm:py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all font-bold shadow-lg disabled:shadow-none text-sm sm:text-base touch-manipulation"
-          >
-            <span>{isLastQuestion ? 'Terminer' : 'Suivant'}</span>
-            <ChevronRight size={20} />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { CheckCircle, XCircle, RotateCcw, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, X, RotateCcw, Plus, History, Loader2 } from 'lucide-react';
 import { Quiz } from '@/lib/api';
 import { useUser } from '@clerk/nextjs';
-// 👇 Import de la gamification
 import { addXp } from '@/lib/gamificationService';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 interface QuizResultsProps {
   quiz: Quiz;
@@ -21,106 +22,150 @@ export default function QuizResults({
   onNewQuiz,
 }: QuizResultsProps) {
   const { user } = useUser();
-  const hasAddedXp = useRef(false); // Pour éviter de donner l'XP en double
+  const router = useRouter();
+  const hasSaved = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Calcul du score
   const score = userAnswers.reduce((acc, answer, index) => {
     return acc + (answer === quiz.questions[index].correctAnswer ? 1 : 0);
   }, 0);
 
   const percentage = Math.round((score / quiz.questions.length) * 100);
 
-  // 🎉 EFFET : Donner l'XP au chargement du résultat
   useEffect(() => {
-    const giveRewards = async () => {
-      if (user && !hasAddedXp.current) {
-        hasAddedXp.current = true;
+    const saveResultAndXp = async () => {
+      // On vérifie que l'utilisateur est chargé et qu'on n'a pas déjà sauvegardé
+      if (user && !hasSaved.current) {
+        hasSaved.current = true;
+        setIsSaving(true);
 
-        // Formule : 10 XP de base + le pourcentage de réussite
-        // Ex: 100% = 110 XP | 50% = 60 XP
-        const xpAmount = 10 + percentage;
+        try {
+          // 1. Donner l'XP
+          const xpAmount = 10 + percentage;
+          await addXp(user.id, xpAmount, `Quiz terminé (${percentage}%)`);
 
-        await addXp(user.id, xpAmount, `Quiz terminé (${percentage}%)`);
+          console.log("💾 Tentative sauvegarde historique...");
+
+          // 2. Préparer un JSON "propre" et léger pour la base de données
+          // (On évite d'envoyer des objets trop complexes ou avec des types bizarres)
+          const cleanQuestions = quiz.questions.map(q => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation || ""
+          }));
+
+          const { error } = await supabase.from('quiz_history').insert({
+            user_id: user.id,
+            quiz_data: cleanQuestions, // On stocke juste le tableau de questions
+            score: score,
+            total_questions: quiz.questions.length,
+            difficulty: 'medium', // Valeur par défaut si manquante
+            source: 'text',       // Valeur par défaut si manquante
+            answers: userAnswers,
+            created_at: new Date().toISOString()
+          });
+
+          if (error) {
+            // On lance une vraie erreur avec le message pour le debug
+            throw new Error(error.message || "Erreur inconnue Supabase");
+          }
+
+          console.log("✅ Quiz sauvegardé avec succès !");
+
+        } catch (err: any) {
+          // Log détaillé de l'erreur
+          console.error("❌ Erreur sauvegarde quiz:", err.message || err);
+        } finally {
+          setIsSaving(false);
+        }
       }
     };
-    giveRewards();
-  }, [user, percentage]);
+
+    saveResultAndXp();
+  }, [user, percentage, quiz, score, userAnswers]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 animate-in fade-in slide-in-from-bottom-4">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-blue-50 mb-4 relative">
-          <span className="text-4xl font-bold text-blue-600">{percentage}%</span>
-          {/* Badge XP */}
-          <div className="absolute -right-2 -top-2 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm animate-bounce">
+    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+
+      {/* Score Card */}
+      <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 text-center shadow-sm mb-8 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
+        {isSaving && (
+            <div className="absolute top-4 right-4 flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full animate-pulse">
+                <Loader2 size={12} className="animate-spin"/> Sauvegarde...
+            </div>
+        )}
+
+        <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-slate-900 text-white mb-6 shadow-xl relative">
+          <span className="text-5xl font-black tracking-tighter">{percentage}%</span>
+          <div className="absolute -right-2 -top-2 bg-yellow-400 text-slate-900 text-xs font-bold px-3 py-1 rounded-full shadow-sm border-2 border-white">
             +{10 + percentage} XP
           </div>
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
-          {percentage >= 80 ? 'Excellent ! 🎉' : percentage >= 50 ? 'Bien joué ! 👍' : 'Courage ! 💪'}
+
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-2">
+          {percentage >= 80 ? 'Excellent ! 🎉' : percentage >= 50 ? 'Bien joué ! 👍' : 'On continue ! 💪'}
         </h2>
-        <p className="text-gray-600">
-          Vous avez eu {score} bonnes réponses sur {quiz.questions.length}
+        <p className="text-slate-500 font-medium mb-8">
+          {score} bonnes réponses sur {quiz.questions.length}
         </p>
+
+        <div className="flex flex-wrap justify-center gap-3">
+           <button onClick={onRetake} className="btn-b-secondary px-5 text-sm">
+              <RotateCcw size={16} /> Réessayer
+           </button>
+           <button onClick={onNewQuiz} className="btn-b-primary px-5 text-sm">
+              <Plus size={16} /> Nouveau
+           </button>
+           <button onClick={() => router.push('/workspace/quiz/history')} className="btn-b-secondary px-5 text-sm border-slate-200 text-slate-500">
+              <History size={16} /> Historique
+           </button>
+        </div>
       </div>
 
-      <div className="space-y-6 mb-8">
+      {/* Correction */}
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold text-slate-900 px-2">Correction</h3>
         {quiz.questions.map((q, index) => {
           const isCorrect = userAnswers[index] === q.correctAnswer;
           return (
-            <div
-              key={index}
-              className={`p-4 rounded-xl border-l-4 ${
-                isCorrect
-                  ? 'bg-green-50 border-green-500'
-                  : 'bg-red-50 border-red-500'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-1">
-                  {isCorrect ? (
-                    <CheckCircle className="text-green-600" size={20} />
-                  ) : (
-                    <XCircle className="text-red-600" size={20} />
-                  )}
+            <div key={index} className={`p-6 rounded-2xl border-2 transition-all ${
+                isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex gap-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isCorrect ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'
+                }`}>
+                  {isCorrect ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900 mb-2">{q.question}</p>
-                  <p className="text-sm text-gray-600">
-                    Votre réponse : <span className={isCorrect ? 'text-green-700 font-semibold' : 'text-red-700 font-semibold'}>
-                      {q.options[userAnswers[index]]}
-                    </span>
-                  </p>
-                  {!isCorrect && (
-                    <p className="text-sm text-green-700 mt-1">
-                      Bonne réponse : <span className="font-semibold">{q.options[q.correctAnswer]}</span>
+
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 mb-2 text-lg">{q.question}</p>
+
+                  <div className="text-sm space-y-1">
+                    <p className={`${isCorrect ? 'text-green-700' : 'text-red-700'} font-medium`}>
+                      Votre réponse : {q.options[userAnswers[index]]}
                     </p>
+                    {!isCorrect && (
+                      <p className="text-green-700 font-bold">
+                        Bonne réponse : {q.options[q.correctAnswer]}
+                      </p>
+                    )}
+                  </div>
+
+                  {q.explanation && (
+                    <div className="mt-4 pt-4 border-t border-black/5 text-sm text-slate-600 italic">
+                      💡 {q.explanation}
+                    </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-2 italic border-t border-gray-200/50 pt-2">
-                    ℹ️ {q.explanation}
-                  </p>
                 </div>
               </div>
             </div>
           );
         })}
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <button
-          onClick={onRetake}
-          className="flex items-center justify-center space-x-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
-        >
-          <RotateCcw size={20} />
-          <span>Réessayer</span>
-        </button>
-        <button
-          onClick={onNewQuiz}
-          className="flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
-        >
-          <Plus size={20} />
-          <span>Nouveau Quiz</span>
-        </button>
       </div>
     </div>
   );

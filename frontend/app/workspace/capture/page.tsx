@@ -3,23 +3,18 @@
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, UploadCloud, Layers, Sparkles } from 'lucide-react';
 import { saveCourse } from '@/lib/courseService';
 import { extractTextFromMultipleImages } from '@/lib/api';
 import MultiImageCapture from '@/components/workspace/MultiImageCapture';
-import LoadingFeedback from '@/components/workspace/LoadingFeedback';
-// 👇 IMPORT CRUCIAL POUR L'XP
 import { addXp } from '@/lib/gamificationService';
 
 export default function CapturePage() {
   const { user } = useUser();
   const router = useRouter();
-
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState<string>('uploading');
   const [error, setError] = useState<string | null>(null);
-  const [courseId, setCourseId] = useState<number | null>(null);
 
   const handleImagesSelected = (images: string[]) => {
     setSelectedImages(images);
@@ -28,120 +23,69 @@ export default function CapturePage() {
 
   const handleExtract = async () => {
     if (!user || selectedImages.length === 0) return;
-
     try {
       setLoading(true);
       setError(null);
+      // Simulation UX
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // 1. Upload
-      setLoadingStatus('uploading');
-      console.log(`📸 Début...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // 2. Extraction
-      setLoadingStatus('extracting');
       const result = await extractTextFromMultipleImages(selectedImages);
-      console.log(`✅ Extraction terminée`);
-
-      // 3. Sauvegarde
-      setLoadingStatus('saving');
-
-      // Titre auto
-      const autoTitle = `Cours - ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} (${result.totalImages} pages)`;
-
-      const course = await saveCourse(
-        user.id,
-        result.extractedText,
-        autoTitle
-      );
-
-      console.log('✅ Cours sauvegardé, ID:', course.id);
-
-      // 🎉 4. GAMIFICATION : C'est ici qu'on donne l'XP !
-      // On attend que la sauvegarde soit finie pour être sûr que l'user existe
-      console.log("🎁 Ajout des points d'XP...");
+      const autoTitle = `Cours du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`;
+      const course = await saveCourse(user.id, result.extractedText, autoTitle);
       await addXp(user.id, 50, 'Nouveau cours créé');
-
-      setCourseId(course.id);
-      setLoadingStatus('ready');
-
+      router.push(`/workspace/courses/${course.id}`);
     } catch (err: any) {
-      console.error('❌ Erreur:', err);
-      setError(err.message || 'Erreur lors de l\'extraction');
-      setLoading(false);
-    }
-  };
-
-  const handleCloseModal = () => {
-    if (courseId) {
-      router.push(`/workspace/courses/${courseId}`);
-    } else {
+      console.error(err);
+      setError(err.message || "Erreur d'analyse");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 relative">
-      {loading && <LoadingFeedback status={loadingStatus} onClose={handleCloseModal} />}
+    <div className="max-w-3xl mx-auto py-6 animate-in fade-in slide-in-from-bottom-4">
 
-      <div className="max-w-4xl mx-auto">
-        <button
-          onClick={() => router.push('/workspace')}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
-          disabled={loading}
-        >
-          <ArrowLeft size={20} className="mr-2" />
-          Retour au Workspace
+        <button onClick={() => router.push('/workspace')} className="flex items-center gap-2 text-slate-500 font-bold text-sm hover:text-slate-900 mb-8 transition-colors">
+            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center"><ArrowLeft size={16}/></div>
+            Retour
         </button>
 
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            📸 Capturer un Cours
-          </h1>
-          <p className="text-lg text-gray-600">
-            Prenez plusieurs photos de votre cours (maximum 10 pages)
-          </p>
+        <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
+                <Sparkles size={12} /> IA Générative
+            </div>
+            <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Numériser un cours</h1>
+            <p className="text-slate-500 font-medium">Prenez des photos claires pour un meilleur résultat.</p>
         </div>
 
-        {selectedImages.length === 0 ? (
-          <MultiImageCapture
-            onImagesSelected={handleImagesSelected}
-            maxImages={10}
-          />
-        ) : (
-          <div className="space-y-6">
-            <MultiImageCapture
-              onImagesSelected={handleImagesSelected}
-              maxImages={10}
-            />
+        <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 shadow-sm">
+             <MultiImageCapture
+                onImagesSelected={handleImagesSelected}
+                maxImages={10}
+             />
 
-            <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-              <button
-                onClick={handleExtract}
-                disabled={loading}
-                className="w-full bg-blue-600 text-white font-bold py-4 px-6 rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={20} />
-                    <span>Traitement en cours...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✨ Extraire et Sauvegarder ({selectedImages.length} photos)</span>
-                  </>
-                )}
-              </button>
+             {selectedImages.length > 0 && (
+                <div className="mt-8 pt-6 border-t-2 border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-slate-600 font-bold text-sm bg-slate-50 px-4 py-2 rounded-xl">
+                        <Layers size={18} className="text-blue-600"/> {selectedImages.length} images
+                    </div>
 
-              {error && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">❌ {error}</p>
+                    <button
+                        onClick={handleExtract}
+                        disabled={loading}
+                        className="btn-b-primary w-full sm:w-auto min-w-[200px]"
+                    >
+                        {loading ? <Loader2 className="animate-spin"/> : <UploadCloud />}
+                        {loading ? 'Analyse...' : 'Générer le Cours'}
+                    </button>
                 </div>
-              )}
+             )}
+        </div>
+
+        {error && (
+            <div className="mt-6 p-4 bg-red-50 border-2 border-red-100 text-red-600 rounded-2xl font-bold text-center text-sm">
+                {error}
             </div>
-          </div>
         )}
-      </div>
     </div>
   );
 }

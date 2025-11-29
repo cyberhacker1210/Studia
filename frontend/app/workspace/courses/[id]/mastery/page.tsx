@@ -3,345 +3,332 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import {
-    ArrowRight, BrainCircuit, CheckCircle, XCircle, Loader2,
-    BookOpen, HelpCircle, RotateCcw, Sparkles, ArrowLeft, Save, Layers
-} from 'lucide-react';
+import { ArrowLeft, Lock, Check, Play, Star, Brain, Loader2 } from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
-import { saveFlashcardDeck } from '@/lib/flashcardService';
-import ReactMarkdown from 'react-markdown'; // ⚠️ Nécessite npm install react-markdown
+import { supabase } from '@/lib/supabase';
+import ReactMarkdown from 'react-markdown';
 
-export default function ImmersiveMasteryPage() {
+// Types
+interface Module {
+  title: string;
+  description: string;
+  content: string;
+  quiz: {
+    question: string;
+    options: string[];
+    correct_index: number;
+    explanation: string;
+  }[];
+}
+
+export default function MasteryPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
 
-  const [courseText, setCourseText] = useState('');
-  const [courseTitle, setCourseTitle] = useState('');
-  const [courseId, setCourseId] = useState<number>(0);
-  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
+  const [view, setView] = useState<'map' | 'learning' | 'quiz' | 'success'>('map');
 
-  // Phases: 'learning' -> 'quiz' -> 'result_quiz' -> 'practice' -> 'feedback_practice'
-  const [phase, setPhase] = useState<string>('learning');
-
-  // State Flashcards
-  const [savedFlashcards, setSavedFlashcards] = useState(false);
-  const [isSavingCards, setIsSavingCards] = useState(false);
-
-  // State Quiz
+  // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
-  const [quizScore, setQuizScore] = useState(0);
-
-  // State Practice
-  const [practiceAnswer, setPracticeAnswer] = useState('');
-  const [practiceFeedback, setPracticeFeedback] = useState<any>(null);
-  const [evaluating, setEvaluating] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
-    if (user && params.id) initSession();
+    if (user && params.id) loadPath();
   }, [user, params.id]);
 
-  const initSession = async () => {
+  const loadPath = async () => {
+    try {
+      // 1. Vérifier si on a déjà une progression sauvegardée localement (ou DB)
+      // Pour ce MVP amélioré, on utilise localStorage pour la structure des modules
+      const localData = localStorage.getItem(`mastery_data_${params.id}`);
+
+      // 2. Récupérer la progression utilisateur depuis Supabase
+      const { data: progress } = await supabase
+        .from('course_progress')
+        .select('current_module_index')
+        .eq('user_id', user!.id)
+        .eq('course_id', params.id)
+        .single();
+
+      if (progress) {
+        setCurrentModuleIndex(progress.current_module_index || 0);
+      }
+
+      if (localData) {
+        setModules(JSON.parse(localData));
+        setLoading(false);
+      } else {
+        // Sinon, on génère via l'IA
+        generateModules();
+      }
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
+    }
+  };
+
+  const generateModules = async () => {
+    setLoading(true);
     try {
       const course = await getCourseById(Number(params.id), user!.id);
-      setCourseText(course.extracted_text);
-      setCourseTitle(course.title);
-      setCourseId(course.id);
-
       const res = await fetch(`${API_URL}/api/path/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ course_text: course.extracted_text }),
       });
 
-      if(!res.ok) throw new Error("Erreur API");
-
       const data = await res.json();
-      setQuizAnswers(new Array(data.quiz.length).fill(-1));
-      setSession(data);
+      if (data.modules) {
+        setModules(data.modules);
+        localStorage.setItem(`mastery_data_${params.id}`, JSON.stringify(data.modules));
+
+        // Init progress in DB
+        await supabase.from('course_progress').upsert({
+            user_id: user!.id,
+            course_id: Number(params.id),
+            current_module_index: 0
+        }, { onConflict: 'user_id,course_id' });
+      }
     } catch (err) {
       console.error(err);
-      setError("Impossible de générer le parcours. Le cours est peut-être trop court.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- ACTION : SAUVEGARDER LES FLASHCARDS ---
-  const handleSaveFlashcards = async () => {
-      if(!user || !session.flashcards) return;
-      setIsSavingCards(true);
-      try {
-          // On formate pour ton service existant
-          const formattedCards = session.flashcards.map((c: any) => ({
-              front: c.front,
-              back: c.back,
-              category: 'Parcours'
-          }));
+  const startModule = (index: number) => {
+    if (index > currentModuleIndex) return; // Locked
+    setCurrentModuleIndex(index); // Juste pour l'affichage
+    setView('learning');
+  };
 
-          await saveFlashcardDeck(
-              user.id,
-              formattedCards,
-              `Flashcards - ${courseTitle}`,
-              'medium',
-              courseId
-          );
-          setSavedFlashcards(true);
-          await addXp(user.id, 20, 'Flashcards sauvegardées');
-      } catch (e) {
-          console.error(e);
-          alert("Erreur lors de la sauvegarde");
-      } finally {
-          setIsSavingCards(false);
+  const handleFinishLearning = () => {
+    setQuizAnswers(new Array(modules[currentModuleIndex].quiz.length).fill(-1));
+    setView('quiz');
+  };
+
+  const submitQuiz = async () => {
+    const currentQuiz = modules[currentModuleIndex].quiz;
+    const isAllCorrect = currentQuiz.every((q, i) => quizAnswers[i] === q.correct_index);
+
+    if (isAllCorrect) {
+      setView('success');
+      const nextIndex = currentModuleIndex + 1;
+
+      // Sauvegarder la progression
+      if (nextIndex > currentModuleIndex) {
+          await supabase.from('course_progress').upsert({
+            user_id: user!.id,
+            course_id: Number(params.id),
+            current_module_index: nextIndex
+          }, { onConflict: 'user_id,course_id' });
+
+          // Mettre à jour l'état local pour débloquer le suivant
+          setCurrentModuleIndex(nextIndex);
       }
-  };
 
-  const submitQuiz = () => {
-      let score = 0;
-      session.quiz.forEach((q: any, idx: number) => {
-          if (quizAnswers[idx] === q.correct_index) score++;
-      });
-      const percentage = Math.round((score / session.quiz.length) * 100);
-      setQuizScore(percentage);
-      setPhase('result_quiz');
-      if (percentage >= 80 && user) addXp(user.id, 50, 'Quiz Validé');
-  };
-
-  const submitPractice = async () => {
-    if(!practiceAnswer.trim()) return;
-    setEvaluating(true);
-    try {
-        const res = await fetch(`${API_URL}/api/path/evaluate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                instruction: session.practice_task.instruction,
-                student_answer: practiceAnswer,
-                course_context: courseText
-            }),
-        });
-        const result = await res.json();
-        setPracticeFeedback(result);
-        setPhase('feedback_practice');
-        if (result.is_correct && user) await addXp(user.id, 100, 'Parcours terminé');
-    } catch (err) {
-        console.error(err);
-    } finally {
-        setEvaluating(false);
+      addXp(user!.id, 100, `Module ${currentModuleIndex + 1} terminé`);
+    } else {
+      setQuizError("Certaines réponses sont incorrectes. Réessayez !");
     }
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
-        <BrainCircuit className="text-indigo-600 w-16 h-16 animate-pulse mb-4"/>
-        <h2 className="text-2xl font-bold text-gray-900">Préparation de votre séance...</h2>
-        <p className="text-gray-500">L'IA structure vos connaissances.</p>
-    </div>
-  );
-
-  if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Navbar simplifiée */}
-      <div className="bg-white border-b border-gray-100 p-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-         <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full text-gray-600"><ArrowLeft/></button>
-         <div className="font-bold text-gray-800 uppercase tracking-wider text-sm">
-            {phase === 'learning' && "Phase 1 : Apprentissage"}
-            {phase.includes('quiz') && "Phase 2 : Vérification"}
-            {phase.includes('practice') && "Phase 3 : Application"}
-         </div>
-         <div className="w-8"></div>
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white flex-col gap-4">
+        <div className="relative w-24 h-24">
+            <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            <Brain className="absolute inset-0 m-auto text-slate-900" size={32}/>
+        </div>
+        <p className="font-bold text-slate-900">Création de votre parcours sur mesure...</p>
+        <p className="text-sm text-slate-500">L'IA découpe votre cours en sessions digestes.</p>
       </div>
+    );
+  }
 
-      <div className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
+  // === VUE 1 : LA CARTE (MAP) ===
+  if (view === 'map') {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 pb-24">
+        <button onClick={() => router.push(`/workspace/courses/${params.id}`)} className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-10 hover:text-slate-900 transition-colors">
+            <ArrowLeft size={18}/> Retour
+        </button>
 
-        {/* === PHASE 1: APPRENTISSAGE (Texte Beau + Flashcards) === */}
-        {phase === 'learning' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8">
-
-                {/* CONTENU DU COURS (Markdown) */}
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 prose prose-indigo lg:prose-lg max-w-none">
-                    {/* Le plugin typography de Tailwind rendra ça magnifique */}
-                    <ReactMarkdown>{session.learning_content}</ReactMarkdown>
-                </div>
-
-                {/* FLASHCARDS GÉNÉRÉES */}
-                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
-                            <Layers className="text-indigo-600"/>
-                            Flashcards Clés ({session.flashcards.length})
-                        </h3>
-                        <button
-                            onClick={handleSaveFlashcards}
-                            disabled={savedFlashcards || isSavingCards}
-                            className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
-                                savedFlashcards 
-                                ? 'bg-green-100 text-green-700 cursor-default' 
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200'
-                            }`}
-                        >
-                            {isSavingCards ? <Loader2 className="animate-spin" size={16}/> : savedFlashcards ? <CheckCircle size={16}/> : <Save size={16}/>}
-                            {savedFlashcards ? "Sauvegardé" : "Sauvegarder le deck"}
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {session.flashcards.map((card: any, idx: number) => (
-                            <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                <p className="font-bold text-gray-800 mb-2 text-sm">{card.front}</p>
-                                <div className="h-px bg-gray-100 w-full mb-2"></div>
-                                <p className="text-gray-600 text-sm">{card.back}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <button
-                    onClick={() => setPhase('quiz')}
-                    className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-xl"
-                >
-                    J'ai tout retenu, je passe au Quiz <ArrowRight />
-                </button>
+        <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-yellow-50 text-yellow-700 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-4 border border-yellow-100">
+                <Star size={12} fill="currentColor"/> Parcours Maîtrise
             </div>
-        )}
+            <h1 className="text-4xl font-black text-slate-900 mb-2">Votre chemin vers la réussite</h1>
+            <p className="text-slate-500 font-medium">3 étapes pour maîtriser ce cours sans effort.</p>
+        </div>
 
-        {/* === PHASE 2: QUIZ === */}
-        {phase === 'quiz' && (
-            <div className="animate-in zoom-in-95 space-y-6">
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 text-center">
-                    <h2 className="text-xl font-bold text-gray-900">Test de Connaissances</h2>
-                    <p className="text-gray-500">Il faut 80% de réussite pour passer à la suite.</p>
-                </div>
+        <div className="space-y-6 relative">
+            {/* Ligne verticale de connexion */}
+            <div className="absolute left-8 top-8 bottom-8 w-1 bg-slate-100 -z-10"></div>
 
-                {session.quiz.map((q: any, qIdx: number) => (
-                    <div key={qIdx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                        <p className="font-bold text-lg mb-4 text-gray-800">{qIdx + 1}. {q.question}</p>
-                        <div className="space-y-2">
-                            {q.options.map((opt: string, oIdx: number) => (
-                                <button
-                                    key={oIdx}
-                                    onClick={() => {
-                                        const newAns = [...quizAnswers];
-                                        newAns[qIdx] = oIdx;
-                                        setQuizAnswers(newAns);
-                                    }}
-                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium ${
-                                        quizAnswers[qIdx] === oIdx 
-                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-900' 
-                                        : 'border-gray-100 hover:border-gray-300 text-gray-600'
-                                    }`}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                ))}
+            {modules.map((mod, idx) => {
+                const isLocked = idx > currentModuleIndex;
+                const isCompleted = idx < currentModuleIndex;
+                const isCurrent = idx === currentModuleIndex;
 
-                <button
-                    onClick={submitQuiz}
-                    disabled={quizAnswers.includes(-1)}
-                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                >
-                    Valider mes réponses
-                </button>
-            </div>
-        )}
-
-        {/* === PHASE 2 BIS: RÉSULTAT QUIZ === */}
-        {phase === 'result_quiz' && (
-            <div className="text-center animate-in zoom-in-95 flex flex-col items-center justify-center h-[70vh]">
-                <div className={`w-40 h-40 rounded-full flex items-center justify-center mb-8 shadow-2xl ${
-                    quizScore >= 80 ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'
-                }`}>
-                    <span className="text-5xl font-black">{quizScore}%</span>
-                </div>
-
-                <h2 className="text-3xl font-black text-gray-900 mb-4">
-                    {quizScore >= 80 ? "C'est validé !" : "Encore un effort..."}
-                </h2>
-                <p className="text-gray-500 mb-10 text-lg max-w-md">
-                    {quizScore >= 80
-                        ? "Vous maîtrisez les bases. Passons à l'application pratique."
-                        : "Vous devez relire le cours pour bien ancrer les connaissances avant de pratiquer."}
-                </p>
-
-                {quizScore >= 80 ? (
-                    <button onClick={() => setPhase('practice')} className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-transform flex items-center gap-2 shadow-xl">
-                        Exercice Pratique <ArrowRight />
-                    </button>
-                ) : (
-                    <button onClick={() => setPhase('learning')} className="bg-white text-gray-900 border-2 border-gray-200 px-10 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-transform flex items-center gap-2">
-                        <RotateCcw /> Relire le cours
-                    </button>
-                )}
-            </div>
-        )}
-
-        {/* === PHASE 3: PRATIQUE === */}
-        {phase === 'practice' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl uppercase tracking-widest">
-                        Mise en situation
-                    </div>
-                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-3 text-gray-900">
-                        <BrainCircuit className="text-indigo-600"/> Cas Pratique
-                    </h2>
-                    <p className="text-lg text-gray-700 mb-8 leading-relaxed">{session.practice_task.instruction}</p>
-
-                    <textarea
-                        className="w-full p-5 bg-gray-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-indigo-500 outline-none transition-all resize-none h-64 text-lg text-gray-800 placeholder:text-gray-400"
-                        placeholder="Écrivez votre réponse détaillée ici..."
-                        value={practiceAnswer}
-                        onChange={(e) => setPracticeAnswer(e.target.value)}
-                    />
-
-                    <button
-                        onClick={submitPractice}
-                        disabled={!practiceAnswer.trim() || evaluating}
-                        className="w-full mt-6 bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-xl"
+                return (
+                    <div
+                        key={idx}
+                        onClick={() => !isLocked && startModule(idx)}
+                        className={`relative flex items-center gap-6 p-6 rounded-[2rem] border-2 transition-all duration-300 group ${
+                            isLocked 
+                            ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed' 
+                            : isCurrent
+                                ? 'bg-white border-slate-900 shadow-xl scale-105 cursor-pointer ring-4 ring-blue-50'
+                                : 'bg-white border-green-200 cursor-pointer hover:border-green-400'
+                        }`}
                     >
-                        {evaluating ? <Loader2 className="animate-spin"/> : <Sparkles size={20}/>}
-                        {evaluating ? "Le professeur corrige..." : "Soumettre ma réponse"}
-                    </button>
-                </div>
-            </div>
-        )}
+                        {/* Icone Statut */}
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm z-10 ${
+                            isLocked ? 'bg-slate-200 text-slate-400' : 
+                            isCompleted ? 'bg-green-500 text-white' : 
+                            'bg-slate-900 text-white'
+                        }`}>
+                            {isLocked && <Lock size={24} />}
+                            {isCompleted && <Check size={28} strokeWidth={3} />}
+                            {isCurrent && <Play size={28} fill="currentColor" />}
+                        </div>
 
-        {/* === FEEDBACK FINAL === */}
-        {phase === 'feedback_practice' && practiceFeedback && (
-            <div className="animate-in zoom-in-95">
-                <div className={`p-8 rounded-3xl mb-8 shadow-xl border-2 ${practiceFeedback.is_correct ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-                    <h2 className={`text-2xl font-bold mb-4 flex items-center gap-2 ${practiceFeedback.is_correct ? 'text-green-800' : 'text-orange-800'}`}>
-                        {practiceFeedback.is_correct ? <CheckCircle size={28}/> : <HelpCircle size={28}/>}
-                        {practiceFeedback.is_correct ? "Excellent travail !" : "Des points à revoir"}
-                    </h2>
-                    <div className="bg-white/60 p-6 rounded-2xl mb-6 text-gray-800 leading-relaxed text-lg">
-                        {practiceFeedback.feedback}
+                        <div className="flex-1">
+                            <h3 className={`font-extrabold text-lg mb-1 ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
+                                {mod.title}
+                            </h3>
+                            <p className={`text-sm font-medium leading-relaxed ${isLocked ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {mod.description}
+                            </p>
+                        </div>
+
+                        {!isLocked && (
+                            <div className="hidden sm:block">
+                                <button className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors ${
+                                    isCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
+                                }`}>
+                                    {isCompleted ? 'Revoir' : 'Commencer'}
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <div className="font-bold text-sm text-right text-gray-500 uppercase tracking-wide">
-                        Note attribuée : {practiceFeedback.score}/100
-                    </div>
-                </div>
-
-                <button
-                    onClick={() => router.push('/workspace')}
-                    className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                >
-                    Terminer la session
-                </button>
-            </div>
-        )}
-
+                );
+            })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // === VUE 2 : APPRENTISSAGE ===
+  if (view === 'learning') {
+      const currentModule = modules[currentModuleIndex];
+      return (
+          <div className="max-w-3xl mx-auto py-12 px-6 pb-32">
+              <div className="mb-8 flex items-center justify-between">
+                  <button onClick={() => setView('map')} className="text-slate-400 hover:text-slate-900 transition-colors">
+                      <ArrowLeft size={24} />
+                  </button>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                      Module {currentModuleIndex + 1} / {modules.length}
+                  </span>
+              </div>
+
+              <div className="prose prose-slate prose-lg max-w-none mb-12">
+                  <h1>{currentModule.title}</h1>
+                  <ReactMarkdown>{currentModule.content}</ReactMarkdown>
+              </div>
+
+              <div className="fixed bottom-0 left-0 w-full p-6 bg-white border-t border-slate-100 flex justify-center">
+                  <button
+                    onClick={handleFinishLearning}
+                    className="btn-b-primary w-full max-w-md text-lg py-4 shadow-xl"
+                  >
+                      J'ai compris, passer au quiz <ArrowRight />
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  // === VUE 3 : QUIZ DE VALIDATION ===
+  if (view === 'quiz') {
+      const currentModule = modules[currentModuleIndex];
+      return (
+          <div className="max-w-2xl mx-auto py-12 px-6">
+              <h2 className="text-2xl font-black text-slate-900 mb-8 text-center">Vérification des acquis</h2>
+
+              <div className="space-y-8">
+                  {currentModule.quiz.map((q, qIdx) => (
+                      <div key={qIdx} className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 shadow-sm">
+                          <p className="font-bold text-lg mb-4">{q.question}</p>
+                          <div className="space-y-3">
+                              {q.options.map((opt, oIdx) => (
+                                  <button
+                                      key={oIdx}
+                                      onClick={() => {
+                                          const newAns = [...quizAnswers];
+                                          newAns[qIdx] = oIdx;
+                                          setQuizAnswers(newAns);
+                                          setQuizError(null);
+                                      }}
+                                      className={`w-full text-left p-4 rounded-xl border-2 font-medium transition-all ${
+                                          quizAnswers[qIdx] === oIdx
+                                          ? 'border-slate-900 bg-slate-900 text-white'
+                                          : 'border-slate-100 hover:border-slate-300 text-slate-600'
+                                      }`}
+                                  >
+                                      {opt}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+
+              {quizError && (
+                  <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl font-bold text-center animate-bounce">
+                      {quizError}
+                  </div>
+              )}
+
+              <button
+                onClick={submitQuiz}
+                disabled={quizAnswers.includes(-1)}
+                className="btn-b-primary w-full mt-8 py-4"
+              >
+                  Valider le module
+              </button>
+          </div>
+      );
+  }
+
+  // === VUE 4 : SUCCÈS ===
+  if (view === 'success') {
+      return (
+          <div className="flex h-screen items-center justify-center bg-white px-6">
+              <div className="text-center max-w-md animate-in zoom-in">
+                  <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 text-6xl shadow-lg">
+                      🎉
+                  </div>
+                  <h2 className="text-4xl font-black text-slate-900 mb-4">Module Terminé !</h2>
+                  <p className="text-slate-500 font-medium text-lg mb-8">
+                      Vous avez validé cette étape. Revenez demain pour la suite, ou continuez si vous êtes chaud !
+                  </p>
+                  <button onClick={() => setView('map')} className="btn-b-primary w-full py-4 text-lg">
+                      Retour à la carte
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  return null;
 }

@@ -1,152 +1,117 @@
 import os
 
-# Dossiers à analyser
-TARGET_DIRS = ['backend', 'frontend', 'src']
+# --- CONFIGURATION ---
+# Taille max par message (15000 est une valeur sûre pour ChatGPT/Claude)
+TAILLE_MAX_PAR_MESSAGE = 15000
 
-# Fichiers/dossiers à ignorer
+DOSSIERS_FRONTEND = [
+    'src', 'app', 'pages', 'components', 'hooks', 'context',
+    'store', 'utils', 'lib', 'styles', 'public'
+]
+
+FICHIERS_CONFIG = [
+    'package.json', 'tsconfig.json', 'next.config.js',
+    'tailwind.config.js', '.env.local'
+]
+
+EXTENSIONS_ACCEPTEES = {
+    '.js', '.jsx', '.ts', '.tsx', '.vue', '.css', '.scss', '.json'
+}
+
 IGNORE = {
-    'node_modules', '.git', '__pycache__', 'venv', 'env',
-    'dist', 'build', '.next', 'coverage', 'package-lock.json',
-    'yarn.lock', '.env', 'public', 'assets', 'static'
+    'node_modules', '.git', '.next', 'dist', 'build',
+    'package-lock.json', 'yarn.lock'
 }
 
-# Extensions à prioriser (fichiers de code principaux)
-PRIORITY_EXTENSIONS = {
-    '.py', '.js', '.jsx', '.ts', '.tsx', '.vue'
-}
 
-# Fichiers de config à inclure
-CONFIG_FILES = {
-    'package.json', 'requirements.txt', 'config.py', 'settings.py',
-    'app.py', 'main.py', 'index.js', 'App.jsx', 'App.tsx'
-}
-
-MAX_FILES = 20
-
-
-def should_ignore(path, name):
-    return name in IGNORE or name.startswith('.')
-
-
-def get_relevant_files(startpath):
-    """Récupère les fichiers pertinents"""
-    files_list = []
-
-    for root, dirs, files in os.walk(startpath):
-        # Filtrer les dossiers à ignorer
-        dirs[:] = [d for d in dirs if not should_ignore(root, d)]
-
-        for file in files:
-            if should_ignore(root, file):
-                continue
-
-            filepath = os.path.join(root, file)
-            _, ext = os.path.splitext(file)
-            relative_path = os.path.relpath(filepath, startpath)
-
-            # Prioriser certains fichiers
-            priority = 0
-            if file in CONFIG_FILES:
-                priority = 3
-            elif ext in PRIORITY_EXTENSIONS:
-                priority = 2
-            elif ext in {'.json', '.yml', '.yaml', '.md'}:
-                priority = 1
-            else:
-                continue
-
-            files_list.append((priority, relative_path, filepath))
-
-    # Trier par priorité (décroissant) puis par nom
-    files_list.sort(key=lambda x: (-x[0], x[1]))
-
-    return files_list[:MAX_FILES]
-
-
-def generate_export():
-    """Génère l'export du workspace"""
-    output = []
-    output.append("=" * 80)
-    output.append("EXPORT WORKSPACE - FICHIERS BACKEND/FRONTEND")
-    output.append("=" * 80)
-    output.append("")
-
-    all_files = []
-
-    # Chercher dans les dossiers cibles
-    for target_dir in TARGET_DIRS:
-        if os.path.exists(target_dir):
-            print(f"📁 Analyse de {target_dir}/...")
-            files = get_relevant_files(target_dir)
-            all_files.extend(files)
-
-    # Si pas de dossiers spécifiques, analyser le dossier courant
-    if not all_files:
-        print("📁 Analyse du dossier courant...")
-        all_files = get_relevant_files('.')
-
-    # Retirer les doublons et limiter
-    seen = set()
-    unique_files = []
-    for priority, relpath, fullpath in all_files:
-        if relpath not in seen:
-            seen.add(relpath)
-            unique_files.append((priority, relpath, fullpath))
-
-    unique_files = unique_files[:MAX_FILES]
-
-    # Arborescence
-    output.append("📂 STRUCTURE DES FICHIERS SÉLECTIONNÉS:")
-    output.append("-" * 80)
-    for _, relpath, _ in unique_files:
-        output.append(f"  {relpath}")
-    output.append("")
-    output.append(f"Total: {len(unique_files)} fichiers")
-    output.append("")
-
-    # Contenus
-    output.append("=" * 80)
-    output.append("📄 CONTENU DES FICHIERS")
-    output.append("=" * 80)
-    output.append("")
-
-    for _, relpath, fullpath in unique_files:
-        try:
-            with open(fullpath, 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            output.append("")
-            output.append("/" * 80)
-            output.append(f"FICHIER: {relpath}")
-            output.append("/" * 80)
-            output.append(content)
-            output.append("")
-
-        except Exception as e:
-            output.append(f"\n[❌ Erreur lecture {relpath}: {str(e)}]\n")
-
-    return '\n'.join(output)
+def generer_arborescence(root_path):
+    """Génère juste la structure des dossiers pour l'IA"""
+    tree = ["CONTEXTE : ARBORESCENCE DU PROJET (Code à suivre dans les prochains messages)", "=" * 50]
+    for root, dirs, files in os.walk(root_path):
+        dirs[:] = [d for d in dirs if d not in IGNORE]
+        level = root.replace(root_path, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        tree.append(f"{indent}📂 {os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            if f not in IGNORE:
+                tree.append(f"{subindent}📄 {f}")
+    return "\n".join(tree)
 
 
 def main():
-    print("🚀 Début de l'export...")
+    root_path = os.getcwd()
+    print(f"🚀 Analyse et découpage du projet dans : {root_path}")
 
-    full_text = generate_export()
+    # 1. Générer le Sommaire
+    sommaire = generer_arborescence(root_path)
+    with open("CHAT_0_STRUCTURE.txt", "w", encoding="utf-8") as f:
+        f.write(sommaire)
+    print("✅ 'CHAT_0_STRUCTURE.txt' créé (Donnez ça en premier à l'IA).")
 
-    # Sauvegarder
-    output_file = 'workspace_code.txt'
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(full_text)
+    # 2. Récupérer et découper le contenu
+    files_content = []
 
-    print(f"\n✅ Export terminé!")
-    print(f"📝 Fichier créé: {output_file}")
-    print(f"📊 Taille: {len(full_text):,} caractères")
+    for root, dirs, files in os.walk(root_path):
+        dirs[:] = [d for d in dirs if d not in IGNORE]
 
-    # Si trop gros, proposer de diviser
-    if len(full_text) > 25000:
-        nb_parts = (len(full_text) // 25000) + 1
-        print(f"⚠️  Fichier volumineux ({nb_parts} parties pour le chat)")
-        print(f"💡 Conseil: Copiez et envoyez en {nb_parts} messages séparés")
+        # Filtrage dossier front
+        rel_dir = os.path.relpath(root, root_path)
+        is_front = any(d in rel_dir.split(os.sep) for d in DOSSIERS_FRONTEND)
+        is_root = rel_dir == '.'
+
+        if not (is_front or is_root):
+            continue
+
+        for file in files:
+            if file in IGNORE: continue
+
+            _, ext = os.path.splitext(file)
+            is_config = is_root and file in FICHIERS_CONFIG
+            is_code = is_front and ext in EXTENSIONS_ACCEPTEES
+
+            if is_config or is_code:
+                path = os.path.join(root, file)
+                relpath = os.path.relpath(path, root_path)
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        # On ignore les fichiers trop gros (minifiés)
+                        if len(content) > 50000: continue
+
+                        formatted = f"\n{'=' * 40}\nFICHIER : {relpath}\n{'=' * 40}\n{content}\n"
+                        files_content.append(formatted)
+                except:
+                    pass
+
+    # 3. Écriture en morceaux (Chunks)
+    part_num = 1
+    current_chunk = ""
+
+    for file_text in files_content:
+        # Si ajouter ce fichier dépasse la limite, on sauvegarde et on passe au suivant
+        if len(current_chunk) + len(file_text) > TAILLE_MAX_PAR_MESSAGE:
+            filename = f"CHAT_PARTIE_{part_num}.txt"
+            header = f"PARTIE {part_num} (Suite du code...)\n"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(header + current_chunk)
+            print(f"📦 {filename} créé ({len(current_chunk)} caractères)")
+
+            part_num += 1
+            current_chunk = ""  # Reset
+
+        current_chunk += file_text
+
+    # Sauvegarder le reste
+    if current_chunk:
+        filename = f"CHAT_PARTIE_{part_num}.txt"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(f"PARTIE {part_num} (FIN)\n" + current_chunk)
+        print(f"📦 {filename} créé ({len(current_chunk)} caractères)")
+
+    print("\n🏁 TERMINÉ ! Mode d'emploi :")
+    print("1. Envoyez 'CHAT_0_STRUCTURE.txt' pour que l'IA comprenne l'architecture.")
+    print("2. Envoyez 'CHAT_PARTIE_1.txt', puis le 2, etc.")
 
 
 if __name__ == "__main__":
