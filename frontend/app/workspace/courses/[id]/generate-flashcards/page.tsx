@@ -6,9 +6,11 @@ import { useUser } from '@clerk/nextjs';
 import { getCourseById, Course } from '@/lib/courseService';
 import { generateFlashcards } from '@/lib/api';
 import { saveFlashcardDeck } from '@/lib/flashcardService';
-import { ArrowLeft, Loader2, Check, Brain, Flame, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, Check, Brain, Zap } from 'lucide-react';
 import FlashcardViewer from '@/components/workspace/FlashcardViewer';
 import { Flashcard } from '@/lib/flashcardService';
+// 👇 Import du Hook Énergie
+import { useEnergy } from '@/hooks/useEnergy';
 
 type Step = 'config' | 'generating' | 'reviewing' | 'saved';
 
@@ -16,6 +18,10 @@ export default function GenerateFlashcardsPage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoaded } = useUser();
+
+  // 👇 Initialisation Hook
+  const { consumeEnergy, isPremium } = useEnergy();
+
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('config');
@@ -44,6 +50,16 @@ export default function GenerateFlashcardsPage() {
 
   const handleGenerate = async () => {
     if (!course || !user) return;
+
+    // 🛑 VÉRIFICATION ÉNERGIE (Coût: 1)
+    const canProceed = await consumeEnergy(1);
+    if (!canProceed) {
+        if(confirm("⚡️ Énergie épuisée.\n\nPassez Premium pour générer des flashcards en illimité.")) {
+            router.push('/workspace/pricing');
+        }
+        return;
+    }
+
     try {
       setStep('generating');
       setError(null);
@@ -74,7 +90,6 @@ export default function GenerateFlashcardsPage() {
     <div className="min-h-screen bg-white text-slate-900 py-12 px-6">
       <div className="max-w-3xl mx-auto">
 
-        {/* Back Button */}
         {step !== 'saved' && (
           <button
             onClick={() => router.push(`/workspace/courses/${params.id}`)}
@@ -85,7 +100,6 @@ export default function GenerateFlashcardsPage() {
           </button>
         )}
 
-        {/* Header */}
         <div className="mb-10">
             <span className="text-xs font-bold tracking-wider text-blue-600 uppercase mb-2 block">Générateur IA</span>
             <h1 className="text-3xl font-bold text-slate-900">Flashcards sur mesure</h1>
@@ -94,8 +108,7 @@ export default function GenerateFlashcardsPage() {
         {step === 'config' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
 
-            {/* CARD: QUANTITY */}
-            <div className="bg-white border border-slate-200 p-8 rounded-3xl shadow-sm">
+            <div className="bg-white border-2 border-slate-200 p-8 rounded-[2rem] shadow-sm">
               <div className="flex justify-between items-center mb-6">
                 <label className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <Zap size={20} className="text-yellow-500" />
@@ -109,7 +122,7 @@ export default function GenerateFlashcardsPage() {
                 max="20"
                 value={numCards}
                 onChange={(e) => setNumCards(Number(e.target.value))}
-                className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-slate-900 hover:accent-blue-600 transition-colors"
+                className="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-slate-900 hover:accent-blue-600 transition-colors"
               />
               <div className="flex justify-between text-xs font-bold text-slate-400 mt-3 uppercase tracking-wider">
                 <span>Rapide (5)</span>
@@ -117,8 +130,7 @@ export default function GenerateFlashcardsPage() {
               </div>
             </div>
 
-            {/* CARD: DIFFICULTY */}
-            <div className="bg-white border border-slate-200 p-8 rounded-3xl shadow-sm">
+            <div className="bg-white border-2 border-slate-200 p-8 rounded-[2rem] shadow-sm">
               <label className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6">
                 <Brain size={20} className="text-blue-500" />
                 Niveau de complexité
@@ -148,9 +160,11 @@ export default function GenerateFlashcardsPage() {
 
             <button
               onClick={handleGenerate}
-              className="w-full bg-slate-900 text-white text-lg font-bold py-4 px-6 rounded-2xl hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200"
+              className="w-full btn-b-primary py-4 text-lg flex items-center justify-center gap-2"
             >
-              Lancer la génération
+              <span>✨ Lancer la génération</span>
+              {/* COÛT ÉNERGIE */}
+              {!isPremium && <span className="text-xs bg-slate-800 text-yellow-400 px-2 py-1 rounded-full">-1 ⚡️</span>}
             </button>
 
             {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium text-center">{error}</div>}
@@ -181,7 +195,7 @@ export default function GenerateFlashcardsPage() {
                 </button>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-[2.5rem] shadow-lg border border-slate-100 overflow-hidden">
               <FlashcardViewer flashcards={flashcards} />
             </div>
           </div>

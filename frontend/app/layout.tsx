@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import { ClerkProvider } from '@clerk/nextjs'; // 👈 L'import vital
+import { ClerkProvider } from '@clerk/nextjs';
+import Script from 'next/script'; // 👈 Import du Script
 
-// Configuration de la police
 const inter = Inter({
   subsets: ["latin"],
   variable: '--font-inter',
@@ -22,9 +22,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // 👇 C'est ICI que Clerk est activé pour TOUT le site
     <ClerkProvider>
       <html lang="fr" className={inter.variable}>
+        <head>
+          {/* Google Analytics */}
+          <Script
+            src="https://www.googletagmanager.com/gtag/js?id=G-12WVTRWTWR"
+            strategy="afterInteractive"
+          />
+          <Script id="google-analytics" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-12WVTRWTWR');
+            `}
+          </Script>
+        </head>
         <body className="min-h-screen flex flex-col bg-white selection:bg-slate-900 selection:text-white">
           <LanguageProvider>
             {children}

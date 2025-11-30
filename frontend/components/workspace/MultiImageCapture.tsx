@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Camera, Image as ImageIcon, X, Upload } from 'lucide-react';
+import { Camera, Image as ImageIcon, X, Upload, Plus } from 'lucide-react';
 
 interface MultiImageCaptureProps {
   onImagesSelected: (images: string[]) => void;
@@ -20,20 +20,12 @@ export default function MultiImageCapture({
     if (!files || files.length === 0) return;
 
     const newImages: string[] = [];
-
-    // Limite au nombre d'images restantes
     const remainingSlots = maxImages - selectedImages.length;
     const filesToProcess = Math.min(files.length, remainingSlots);
 
     for (let i = 0; i < filesToProcess; i++) {
       const file = files[i];
-
-      // Vérifier que c'est bien une image
-      if (!file.type.startsWith('image/')) {
-        continue;
-      }
-
-      // Convertir en base64
+      if (!file.type.startsWith('image/')) continue;
       const base64 = await fileToBase64(file);
       newImages.push(base64);
     }
@@ -42,7 +34,6 @@ export default function MultiImageCapture({
     setSelectedImages(updatedImages);
     onImagesSelected(updatedImages);
 
-    // Avertir si limite atteinte
     if (updatedImages.length >= maxImages) {
       alert(`Maximum de ${maxImages} photos atteint !`);
     }
@@ -63,163 +54,115 @@ export default function MultiImageCapture({
     onImagesSelected(updatedImages);
   };
 
-  const handleCameraClick = () => {
-    cameraInputRef.current?.click();
-  };
-
-  const handleGalleryClick = () => {
-    galleryInputRef.current?.click();
-  };
-
   const canAddMore = selectedImages.length < maxImages;
 
   return (
-    <div className="space-y-6">
-      {/* Action Buttons */}
-      {canAddMore && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Bouton Caméra (Mobile) */}
-          <button
-            type="button"
-            onClick={handleCameraClick}
-            className="flex flex-col items-center justify-center p-8 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
-          >
-            <Camera size={48} className="mb-3" />
-            <span className="text-lg font-bold">Prendre une photo</span>
-            <span className="text-sm opacity-90 mt-1">Utiliser la caméra</span>
-          </button>
+    <div className="space-y-8 animate-in fade-in">
 
-          {/* Bouton Galerie */}
-          <button
-            type="button"
-            onClick={handleGalleryClick}
-            className="flex flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
-          >
-            <ImageIcon size={48} className="mb-3" />
-            <span className="text-lg font-bold">Choisir des photos</span>
-            <span className="text-sm opacity-90 mt-1">Depuis la galerie</span>
-          </button>
-
-          {/* Hidden inputs */}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={(e) => handleImageSelection(e.target.files)}
-            className="hidden"
-          />
-
-          <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleImageSelection(e.target.files)}
-            className="hidden"
-          />
-        </div>
-      )}
-
-      {/* Counter */}
-      <div className="text-center">
-        <div className={`inline-flex items-center px-6 py-3 rounded-full font-bold text-lg ${
-          selectedImages.length >= maxImages 
-            ? 'bg-red-100 text-red-700' 
-            : 'bg-blue-100 text-blue-700'
-        }`}>
-          <Upload size={20} className="mr-2" />
-          {selectedImages.length} / {maxImages} photos
-        </div>
-      </div>
-
-      {/* Image Preview Grid */}
+      {/* --- GRILLE DE PHOTOS SÉLECTIONNÉES --- */}
       {selectedImages.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">
-            📸 Photos sélectionnées ({selectedImages.length})
-          </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-8">
+          {selectedImages.map((image, index) => (
+            <div key={index} className="relative group aspect-[3/4] rounded-3xl overflow-hidden border-2 border-slate-100 bg-white shadow-sm hover:shadow-md transition-all">
+              <img
+                src={image}
+                alt={`Page ${index + 1}`}
+                className="w-full h-full object-cover"
+              />
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {selectedImages.map((image, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={image}
-                  alt={`Photo ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-lg shadow-md border-2 border-gray-200"
-                />
+              {/* Overlay Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                {/* Numéro de page */}
-                <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">
-                  {index + 1}
-                </div>
-
-                {/* Bouton supprimer */}
-                <button
-                  onClick={() => removeImage(index)}
-                  className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 transform hover:scale-110"
-                  title="Supprimer"
-                >
-                  <X size={16} />
-                </button>
-
-                {/* Overlay au hover */}
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg pointer-events-none"></div>
+              {/* Badge Numéro */}
+              <div className="absolute top-3 left-3 bg-white text-slate-900 text-xs font-black px-2.5 py-1 rounded-full shadow-sm border border-slate-100">
+                {index + 1}
               </div>
-            ))}
-          </div>
 
-          {/* Bouton Ajouter Plus */}
-          {canAddMore && (
-            <div className="mt-6 flex gap-3">
+              {/* Bouton Supprimer */}
               <button
-                type="button"
-                onClick={handleCameraClick}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg transition-all border-2 border-blue-200"
+                onClick={() => removeImage(index)}
+                className="absolute top-3 right-3 bg-red-500 text-white p-1.5 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 hover:scale-110"
+                title="Supprimer"
               >
-                <Camera size={20} />
-                Ajouter (caméra)
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGalleryClick}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold rounded-lg transition-all border-2 border-purple-200"
-              >
-                <ImageIcon size={20} />
-                Ajouter (galerie)
+                <X size={14} strokeWidth={3} />
               </button>
             </div>
+          ))}
+
+          {/* Bouton "+" (Ajout Rapide) */}
+          {canAddMore && (
+             <button
+               onClick={() => galleryInputRef.current?.click()}
+               className="aspect-[3/4] rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all group"
+             >
+                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-2 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                    <Plus size={20} strokeWidth={3} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Ajouter</span>
+             </button>
           )}
         </div>
       )}
 
-      {/* Info message */}
+      {/* --- SÉLECTEUR INITIAL (SI VIDE) --- */}
       {selectedImages.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-          <p className="text-blue-800 font-medium mb-2">
-            📱 Choisissez votre méthode préférée
-          </p>
-          <p className="text-sm text-blue-600">
-            • Caméra : Prenez des photos en direct<br />
-            • Galerie : Sélectionnez des photos existantes<br />
-            • Maximum {maxImages} photos
-          </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Option Caméra */}
+          <div
+            onClick={() => cameraInputRef.current?.click()}
+            className="group bg-white border-2 border-slate-100 rounded-[2rem] p-8 text-center cursor-pointer hover:border-slate-900 hover:shadow-lg transition-all duration-300 active:scale-95"
+          >
+            <div className="w-20 h-20 bg-slate-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+              <Camera size={36} strokeWidth={2} />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-900 mb-2">Prendre une photo</h3>
+            <p className="text-slate-500 font-medium text-sm">Utilisez votre caméra</p>
+          </div>
+
+          {/* Option Galerie */}
+          <div
+            onClick={() => galleryInputRef.current?.click()}
+            className="group bg-white border-2 border-slate-100 rounded-[2rem] p-8 text-center cursor-pointer hover:border-blue-600 hover:shadow-lg transition-all duration-300 active:scale-95"
+          >
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <ImageIcon size={36} strokeWidth={2} />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-900 mb-2">Importer</h3>
+            <p className="text-slate-500 font-medium text-sm">Depuis la galerie</p>
+          </div>
         </div>
       )}
 
-      {/* Warning si limite atteinte */}
-      {!canAddMore && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-          <p className="text-orange-800 font-medium">
-            ⚠️ Limite de {maxImages} photos atteinte
-          </p>
-          <p className="text-sm text-orange-600 mt-1">
-            Supprimez des photos pour en ajouter d'autres
-          </p>
-        </div>
-      )}
+      {/* --- INPUTS CACHÉS --- */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        className="hidden"
+        onChange={(e) => handleImageSelection(e.target.files)}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleImageSelection(e.target.files)}
+      />
+
+      {/* --- COMPTEUR --- */}
+      <div className="text-center pt-4">
+        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border-2 ${
+          selectedImages.length >= maxImages 
+            ? 'bg-red-50 text-red-600 border-red-100' 
+            : 'bg-slate-50 text-slate-500 border-slate-100'
+        }`}>
+          <Upload size={14} />
+          {selectedImages.length} / {maxImages} Pages
+        </span>
+      </div>
     </div>
   );
 }
