@@ -3,24 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-// 👇 AJOUT DE ArrowRight ICI
-import { ArrowLeft, Lock, Check, Play, Star, Brain, Loader2, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Brain, Zap, CheckCircle, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
-import { supabase } from '@/lib/supabase';
 import ReactMarkdown from 'react-markdown';
 
-// Types
-interface Module {
-  title: string;
-  description: string;
-  content: string;
-  quiz: {
-    question: string;
-    options: string[];
-    correct_index: number;
-    explanation: string;
-  }[];
+type Phase = 'diagnostic' | 'learning' | 'validation' | 'success';
+
+interface Question {
+  question: string;
+  options: string[];
+  correct_index: number;
+  explanation: string;
+  concept: string;
+}
+
+interface LearningContent {
+  text: string;
+  flashcards: { front: string; back: string }[];
 }
 
 export default function MasteryPage() {
@@ -28,239 +28,162 @@ export default function MasteryPage() {
   const router = useRouter();
   const { user } = useUser();
 
+  const [courseText, setCourseText] = useState('');
+  const [phase, setPhase] = useState<Phase>('diagnostic');
   const [loading, setLoading] = useState(true);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
-  const [view, setView] = useState<'map' | 'learning' | 'quiz' | 'success'>('map');
 
-  // Quiz state
+  const [quiz, setQuiz] = useState<Question[]>([]);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
-  const [quizError, setQuizError] = useState<string | null>(null);
+  const [weakConcepts, setWeakConcepts] = useState<string[]>([]);
+  const [learningContent, setLearningContent] = useState<LearningContent | null>(null);
+  const [difficulty, setDifficulty] = useState(1);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
-    if (user && params.id) loadPath();
+    if (user && params.id) {
+        const init = async () => {
+            const course = await getCourseById(Number(params.id), user.id);
+            setCourseText(course.extracted_text);
+            generateDiagnosticQuiz(course.extracted_text);
+        };
+        init();
+    }
   }, [user, params.id]);
 
-  const loadPath = async () => {
-    try {
-      const localData = localStorage.getItem(`mastery_data_${params.id}`);
-
-      const { data: progress } = await supabase
-        .from('course_progress')
-        .select('current_module_index')
-        .eq('user_id', user!.id)
-        .eq('course_id', params.id)
-        .single();
-
-      if (progress) {
-        setCurrentModuleIndex(progress.current_module_index || 0);
-      }
-
-      if (localData) {
-        setModules(JSON.parse(localData));
-        setLoading(false);
-      } else {
-        generateModules();
-      }
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-    }
-  };
-
-  const generateModules = async () => {
+  const generateDiagnosticQuiz = async (text: string) => {
     setLoading(true);
     try {
-      const course = await getCourseById(Number(params.id), user!.id);
-      const res = await fetch(`${API_URL}/api/path/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ course_text: course.extracted_text }),
-      });
-
-      const data = await res.json();
-      if (data.modules) {
-        setModules(data.modules);
-        localStorage.setItem(`mastery_data_${params.id}`, JSON.stringify(data.modules));
-
-        await supabase.from('course_progress').upsert({
-            user_id: user!.id,
-            course_id: Number(params.id),
-            current_module_index: 0
-        }, { onConflict: 'user_id,course_id' });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+        const res = await fetch(`${API_URL}/api/path/diagnostic`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_text: text }),
+        });
+        const data = await res.json();
+        setQuiz(data.questions);
+        setQuizAnswers(new Array(data.questions.length).fill(-1));
+        setPhase('diagnostic');
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  const startModule = (index: number) => {
-    if (index > currentModuleIndex) return;
-    setCurrentModuleIndex(index);
-    setView('learning');
+  const generateRemediation = async () => {
+    setLoading(true);
+    try {
+        const res = await fetch(`${API_URL}/api/path/remediation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_text: courseText,
+                weak_concepts: weakConcepts,
+                difficulty: difficulty
+            }),
+        });
+        const data = await res.json();
+        setLearningContent(data);
+        setPhase('learning');
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const generateValidationQuiz = async () => {
+    setLoading(true);
+    try {
+        const res = await fetch(`${API_URL}/api/path/validation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_text: courseText,
+                concepts: weakConcepts,
+                difficulty: difficulty
+            }),
+        });
+        const data = await res.json();
+        setQuiz(data.questions);
+        setQuizAnswers(new Array(data.questions.length).fill(-1));
+        setPhase('validation');
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const handleSubmitDiagnostic = () => {
+      const mistakes = quiz.filter((q, i) => quizAnswers[i] !== q.correct_index);
+      const mistakesConcepts = mistakes.map(q => q.concept);
+
+      if (mistakes.length === 0) {
+          if (difficulty >= 3) {
+              setPhase('success');
+              addXp(user!.id, 500, 'Maîtrise Totale');
+          } else {
+              setDifficulty(d => d + 1);
+              alert(`Parfait ! Passage au niveau ${difficulty + 1}.`);
+              generateValidationQuiz();
+          }
+      } else {
+          setWeakConcepts([...new Set(mistakesConcepts)]);
+          generateRemediation();
+      }
   };
 
   const handleFinishLearning = () => {
-    setQuizAnswers(new Array(modules[currentModuleIndex].quiz.length).fill(-1));
-    setView('quiz');
+      generateValidationQuiz();
   };
 
-  const submitQuiz = async () => {
-    const currentQuiz = modules[currentModuleIndex].quiz;
-    const isAllCorrect = currentQuiz.every((q, i) => quizAnswers[i] === q.correct_index);
+  const handleSubmitValidation = () => {
+      const score = quiz.reduce((acc, q, i) => acc + (quizAnswers[i] === q.correct_index ? 1 : 0), 0);
+      const percentage = (score / quiz.length) * 100;
 
-    if (isAllCorrect) {
-      setView('success');
-      const nextIndex = currentModuleIndex + 1;
-
-      if (nextIndex > currentModuleIndex) {
-          await supabase.from('course_progress').upsert({
-            user_id: user!.id,
-            course_id: Number(params.id),
-            current_module_index: nextIndex
-          }, { onConflict: 'user_id,course_id' });
-
-          setCurrentModuleIndex(nextIndex);
+      if (percentage >= 80) {
+          if (difficulty >= 3) {
+              setPhase('success');
+              addXp(user!.id, 1000, 'Expert');
+          } else {
+              setDifficulty(d => d + 1);
+              setWeakConcepts([]);
+              alert(`Niveau validé ! On monte d'un cran.`);
+              generateValidationQuiz();
+          }
+      } else {
+          alert("Encore des erreurs. On reprend l'explication.");
+          const newMistakes = quiz.filter((q, i) => quizAnswers[i] !== q.correct_index).map(q => q.concept);
+          setWeakConcepts([...new Set(newMistakes)]);
+          generateRemediation();
       }
-
-      addXp(user!.id, 100, `Module ${currentModuleIndex + 1} terminé`);
-    } else {
-      setQuizError("Certaines réponses sont incorrectes. Réessayez !");
-    }
   };
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-white flex-col gap-4">
-        <div className="relative w-24 h-24">
-            <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-            <Brain className="absolute inset-0 m-auto text-slate-900" size={32}/>
-        </div>
-        <p className="font-bold text-slate-900">Création de votre parcours sur mesure...</p>
-        <p className="text-sm text-slate-500">L'IA découpe votre cours en sessions digestes.</p>
-      </div>
-    );
-  }
-
-  // === VUE 1 : LA CARTE (MAP) ===
-  if (view === 'map') {
-    return (
-      <div className="max-w-2xl mx-auto py-12 px-4 pb-24">
-        <button onClick={() => router.push(`/workspace/courses/${params.id}`)} className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-10 hover:text-slate-900 transition-colors">
-            <ArrowLeft size={18}/> Retour
-        </button>
-
-        <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-yellow-50 text-yellow-700 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-4 border border-yellow-100">
-                <Star size={12} fill="currentColor"/> Parcours Maîtrise
-            </div>
-            <h1 className="text-4xl font-black text-slate-900 mb-2">Votre chemin vers la réussite</h1>
-            <p className="text-slate-500 font-medium">3 étapes pour maîtriser ce cours sans effort.</p>
-        </div>
-
-        <div className="space-y-6 relative">
-            <div className="absolute left-8 top-8 bottom-8 w-1 bg-slate-100 -z-10"></div>
-
-            {modules.map((mod, idx) => {
-                const isLocked = idx > currentModuleIndex;
-                const isCompleted = idx < currentModuleIndex;
-                const isCurrent = idx === currentModuleIndex;
-
-                return (
-                    <div
-                        key={idx}
-                        onClick={() => !isLocked && startModule(idx)}
-                        className={`relative flex items-center gap-6 p-6 rounded-[2rem] border-2 transition-all duration-300 group ${
-                            isLocked 
-                            ? 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed' 
-                            : isCurrent
-                                ? 'bg-white border-slate-900 shadow-xl scale-105 cursor-pointer ring-4 ring-blue-50'
-                                : 'bg-white border-green-200 cursor-pointer hover:border-green-400'
-                        }`}
-                    >
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm z-10 ${
-                            isLocked ? 'bg-slate-200 text-slate-400' : 
-                            isCompleted ? 'bg-green-500 text-white' : 
-                            'bg-slate-900 text-white'
-                        }`}>
-                            {isLocked && <Lock size={24} />}
-                            {isCompleted && <Check size={28} strokeWidth={3} />}
-                            {isCurrent && <Play size={28} fill="currentColor" />}
-                        </div>
-
-                        <div className="flex-1">
-                            <h3 className={`font-extrabold text-lg mb-1 ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
-                                {mod.title}
-                            </h3>
-                            <p className={`text-sm font-medium leading-relaxed ${isLocked ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {mod.description}
-                            </p>
-                        </div>
-
-                        {!isLocked && (
-                            <div className="hidden sm:block">
-                                <button className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors ${
-                                    isCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700 group-hover:bg-blue-100'
-                                }`}>
-                                    {isCompleted ? 'Revoir' : 'Commencer'}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-      </div>
-    );
-  }
-
-  // === VUE 2 : APPRENTISSAGE ===
-  if (view === 'learning') {
-      const currentModule = modules[currentModuleIndex];
       return (
-          <div className="max-w-3xl mx-auto py-12 px-6 pb-32">
-              <div className="mb-8 flex items-center justify-between">
-                  <button onClick={() => setView('map')} className="text-slate-400 hover:text-slate-900 transition-colors">
-                      <ArrowLeft size={24} />
-                  </button>
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                      Module {currentModuleIndex + 1} / {modules.length}
-                  </span>
+          <div className="flex h-screen items-center justify-center flex-col bg-white">
+              <div className="relative w-24 h-24 mb-6">
+                  <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                  <Brain className="absolute inset-0 m-auto text-slate-900" size={32}/>
               </div>
-
-              <div className="prose prose-slate prose-lg max-w-none mb-12">
-                  <h1>{currentModule.title}</h1>
-                  <ReactMarkdown>{currentModule.content}</ReactMarkdown>
-              </div>
-
-              <div className="fixed bottom-0 left-0 w-full p-6 bg-white border-t border-slate-100 flex justify-center">
-                  <button
-                    onClick={handleFinishLearning}
-                    className="btn-b-primary w-full max-w-md text-lg py-4 shadow-xl"
-                  >
-                      J'ai compris, passer au quiz <ArrowRight />
-                  </button>
-              </div>
+              <h2 className="text-xl font-bold text-slate-900 animate-pulse">Analyse cognitive en cours...</h2>
           </div>
       );
   }
 
-  // === VUE 3 : QUIZ ===
-  if (view === 'quiz') {
-      const currentModule = modules[currentModuleIndex];
+  if (phase === 'diagnostic' || phase === 'validation') {
       return (
-          <div className="max-w-2xl mx-auto py-12 px-6">
-              <h2 className="text-2xl font-black text-slate-900 mb-8 text-center">Vérification des acquis</h2>
+          <div className="max-w-3xl mx-auto py-12 px-6 pb-32">
+              <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-8 hover:text-slate-900 transition-colors">
+                  <ArrowLeft size={18}/> Retour
+              </button>
 
-              <div className="space-y-8">
-                  {currentModule.quiz.map((q, qIdx) => (
-                      <div key={qIdx} className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 shadow-sm">
-                          <p className="font-bold text-lg mb-4">{q.question}</p>
+              <div className="text-center mb-10">
+                  <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-4">
+                      {phase === 'diagnostic' ? 'Diagnostic' : `Niveau ${difficulty}/3`}
+                  </div>
+                  <h1 className="text-3xl font-black text-slate-900 mb-2">
+                      {phase === 'diagnostic' ? 'Évaluation initiale' : 'Validation des acquis'}
+                  </h1>
+              </div>
+
+              <div className="space-y-6">
+                  {quiz.map((q, qIdx) => (
+                      <div key={qIdx} className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 transition-all hover:border-slate-200">
+                          <p className="font-bold text-lg mb-6 text-slate-900">{q.question}</p>
                           <div className="space-y-3">
                               {q.options.map((opt, oIdx) => (
                                   <button
@@ -269,12 +192,11 @@ export default function MasteryPage() {
                                           const newAns = [...quizAnswers];
                                           newAns[qIdx] = oIdx;
                                           setQuizAnswers(newAns);
-                                          setQuizError(null);
                                       }}
                                       className={`w-full text-left p-4 rounded-xl border-2 font-medium transition-all ${
                                           quizAnswers[qIdx] === oIdx
-                                          ? 'border-slate-900 bg-slate-900 text-white'
-                                          : 'border-slate-100 hover:border-slate-300 text-slate-600'
+                                          ? 'border-slate-900 bg-slate-900 text-white shadow-md transform scale-[1.01]'
+                                          : 'border-slate-100 hover:border-slate-300 text-slate-600 hover:bg-slate-50'
                                       }`}
                                   >
                                       {opt}
@@ -285,37 +207,68 @@ export default function MasteryPage() {
                   ))}
               </div>
 
-              {quizError && (
-                  <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl font-bold text-center animate-bounce">
-                      {quizError}
-                  </div>
-              )}
-
               <button
-                onClick={submitQuiz}
+                onClick={phase === 'diagnostic' ? handleSubmitDiagnostic : handleSubmitValidation}
                 disabled={quizAnswers.includes(-1)}
-                className="btn-b-primary w-full mt-8 py-4"
+                className="fixed bottom-6 left-6 right-6 md:left-auto md:right-auto md:w-[700px] mx-auto bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:scale-100"
               >
-                  Valider le module
+                  Valider mes réponses
               </button>
           </div>
       );
   }
 
-  // === VUE 4 : SUCCÈS ===
-  if (view === 'success') {
+  if (phase === 'learning' && learningContent) {
       return (
-          <div className="flex h-screen items-center justify-center bg-white px-6">
-              <div className="text-center max-w-md animate-in zoom-in">
-                  <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 text-6xl shadow-lg">
-                      🎉
+          <div className="max-w-3xl mx-auto py-12 px-6 pb-32">
+              <div className="bg-orange-50 border-2 border-orange-100 rounded-[2rem] p-8 mb-8">
+                  <h2 className="text-xl font-black text-orange-800 mb-2 flex items-center gap-2">
+                      <AlertTriangle size={24}/> Concepts à renforcer
+                  </h2>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                      {weakConcepts.map(c => (
+                          <span key={c} className="bg-white text-orange-600 px-3 py-1 rounded-lg text-sm font-bold shadow-sm border border-orange-100">{c}</span>
+                      ))}
                   </div>
-                  <h2 className="text-4xl font-black text-slate-900 mb-4">Module Terminé !</h2>
-                  <p className="text-slate-500 font-medium text-lg mb-8">
-                      Vous avez validé cette étape. Revenez demain pour la suite, ou continuez si vous êtes chaud !
+              </div>
+
+              <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 mb-12 prose prose-slate prose-lg max-w-none">
+                  <ReactMarkdown>{learningContent.text}</ReactMarkdown>
+              </div>
+
+              <div className="grid gap-4 mb-12">
+                  {learningContent.flashcards.map((fc, idx) => (
+                      <div key={idx} className="bg-white border-2 border-slate-100 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer shadow-sm">
+                          <p className="font-black text-slate-900 mb-2 text-lg">{fc.front}</p>
+                          <div className="h-px w-16 bg-slate-200 mx-auto my-3"></div>
+                          <p className="text-slate-500 font-medium">{fc.back}</p>
+                      </div>
+                  ))}
+              </div>
+
+              <button
+                onClick={handleFinishLearning}
+                className="btn-b-primary w-full py-4"
+              >
+                  Je suis prêt à retester <Zap size={20} className="ml-2 fill-yellow-400 text-yellow-400"/>
+              </button>
+          </div>
+      );
+  }
+
+  if (phase === 'success') {
+      return (
+          <div className="flex h-screen items-center justify-center bg-white text-center px-6 animate-in zoom-in">
+              <div className="max-w-md">
+                  <div className="w-32 h-32 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl shadow-yellow-200">
+                      <TrendingUp size={64} className="text-yellow-600"/>
+                  </div>
+                  <h1 className="text-5xl font-black text-slate-900 mb-4">MAÎTRISE TOTALE !</h1>
+                  <p className="text-xl text-slate-500 font-medium mb-10">
+                      Vous avez validé le niveau expert ({difficulty}/3). Vous êtes prêt pour l'examen.
                   </p>
-                  <button onClick={() => setView('map')} className="btn-b-primary w-full py-4 text-lg">
-                      Retour à la carte
+                  <button onClick={() => router.push('/workspace/courses')} className="btn-b-primary w-full py-4 text-lg">
+                      Retour à la bibliothèque
                   </button>
               </div>
           </div>

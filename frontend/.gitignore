@@ -47,3 +47,5 @@ data/
 
 # Workspace data (if you add local storage later)
 frontend/data/
+# clerk configuration (can include secrets)
+/.clerk/

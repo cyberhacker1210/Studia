@@ -1,7 +1,7 @@
 """
-Studia API - MAIN APPLICATION (VERSION ROBUSTE)
+Studia API - MAIN APPLICATION (VERSION ROBUSTE & COMPLETE)
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Literal, List, Optional, Any, Dict
@@ -9,20 +9,40 @@ from datetime import datetime
 import uuid
 import traceback
 import json
+import os
+import hashlib
+import hmac
+from supabase import create_client, Client
 
-# --- IMPORTS ---
+# --- IMPORTS LOCAUX ---
 from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
 from .learning_path import (
     generate_mastery_path,
     evaluate_student_answer,
     generate_daily_plan,
-    chat_with_tutor
+    chat_with_tutor,
+    generate_diagnostic_quiz,
+    generate_remediation_content,
+    generate_validation_quiz
 )
 
-app = FastAPI(title="Studia API", version="2.1.0")
+app = FastAPI(title="Studia API", version="2.2.0")
 
-# --- CORS (Très permissif pour éviter les blocages) ---
+# --- CONFIGURATION EXTERNE ---
+# Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    print("⚠️ Warning: Supabase keys not found in environment variables.")
+
+# Webhooks
+LEMON_WEBHOOK_SECRET = os.getenv("LEMON_WEBHOOK_SECRET")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+# --- CORS ---
 origins = ["*"]
 
 app.add_middleware(
@@ -34,7 +54,7 @@ app.add_middleware(
 )
 
 # ==========================================
-# MODÈLES DE DONNÉES (Sécurisés avec Optional)
+# MODÈLES DE DONNÉES (Pydantic)
 # ==========================================
 
 # 1. Extraction
@@ -52,7 +72,7 @@ class ExtractTextResponse(BaseModel):
     extractedText: str
     pages: List[ExtractedPage]
 
-# 2. Quiz
+# 2. Quiz Classique
 class QuizGenerateRequest(BaseModel):
     image: str
     num_questions: int = 5
@@ -93,7 +113,7 @@ class FlashcardResponse(BaseModel):
     flashcards: List[Flashcard]
     createdAt: str
 
-# 4. Mode Parcours (SÉCURISÉ)
+# 4. Mode Parcours (Classique)
 class MasteryRequest(BaseModel):
     course_text: str
 
@@ -110,13 +130,41 @@ class PracticeTask(BaseModel):
     instruction: str
     xp: int
 
-# On met tout en Optional pour éviter le crash si l'IA oublie un champ
 class MasteryResponse(BaseModel):
     learning_content: Optional[str] = "Contenu en cours de génération..."
     flashcards: Optional[List[PathFlashcard]] = []
     quiz: Optional[List[QuizItem]] = []
     practice_task: Optional[PracticeTask] = None
 
+# 5. Mode Parcours ADAPTATIF (Nouveau)
+class DiagnosticRequest(BaseModel):
+    course_text: str
+
+class RemediationRequest(BaseModel):
+    course_text: str
+    weak_concepts: List[str]
+    difficulty: int
+
+class ValidationRequest(BaseModel):
+    course_text: str
+    concepts: List[str]
+    difficulty: int
+
+class LearningContentResponse(BaseModel):
+    text: str
+    flashcards: List[Dict[str, str]]
+
+class QuizQuestionAdaptive(BaseModel):
+    question: str
+    options: List[str]
+    correct_index: int
+    explanation: str
+    concept: str
+
+class AdaptiveQuizResponse(BaseModel):
+    questions: List[QuizQuestionAdaptive]
+
+# 6. Autres
 class EvaluateRequest(BaseModel):
     instruction: str
     student_answer: str
@@ -159,7 +207,7 @@ def extract_base64_from_data_uri(data_uri: str) -> str:
 
 @app.get("/")
 def root():
-    return {"status": "online", "version": "2.1.0"}
+    return {"status": "online", "version": "2.2.0"}
 
 # --- 1. EXTRACTION ---
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
@@ -246,31 +294,31 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 4. PARCOURS (ROBUSTE) ---
-@app.post("/api/path/generate", response_model=MasteryResponse)
-async def generate_path_endpoint(request: MasteryRequest):
+# --- 4. PARCOURS (ADAPTATIF) ---
+
+@app.post("/api/path/diagnostic", response_model=AdaptiveQuizResponse)
+async def diagnostic_endpoint(request: DiagnosticRequest):
     try:
-        print("⚡️ Generating Path...")
-        data = generate_mastery_path(request.course_text)
-
-        # Si l'IA renvoie une erreur ou un JSON vide, on gère
-        if not data:
-            raise ValueError("AI returned empty response")
-
-        # On construit la réponse manuellement pour éviter les erreurs de validation Pydantic
-        return MasteryResponse(
-            learning_content=data.get("learning_content", "Erreur de génération du contenu."),
-            flashcards=data.get("flashcards", []),
-            quiz=data.get("quiz", []),
-            practice_task=data.get("practice_task", {"instruction": "Impossible de générer l'exercice.", "xp": 0})
-        )
-
+        return generate_diagnostic_quiz(request.course_text)
     except Exception as e:
-        print(f"❌ Error Path: {e}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 5. AUTRES ---
+@app.post("/api/path/remediation", response_model=LearningContentResponse)
+async def remediation_endpoint(request: RemediationRequest):
+    try:
+        return generate_remediation_content(request.course_text, request.weak_concepts, request.difficulty)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/path/validation", response_model=AdaptiveQuizResponse)
+async def validation_endpoint(request: ValidationRequest):
+    try:
+        return generate_validation_quiz(request.course_text, request.concepts, request.difficulty)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- 5. AUTRES (Chat, Motivation) ---
+
 @app.post("/api/path/evaluate", response_model=EvaluateResponse)
 async def evaluate_answer_endpoint(request: EvaluateRequest):
     try:
@@ -292,6 +340,46 @@ async def chat_tutor_endpoint(request: ChatRequest):
         return ChatResponse(reply=reply)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- 6. WEBHOOKS PAIEMENT ---
+
+@app.post("/api/webhook/lemon")
+async def lemon_webhook(request: Request):
+    if not LEMON_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
+    raw_body = await request.body()
+    signature = request.headers.get("X-Signature")
+
+    expected_signature = hmac.new(
+        LEMON_WEBHOOK_SECRET.encode(),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+
+    if not signature or not hmac.compare_digest(signature, expected_signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    data = await request.json()
+    event_name = data.get("meta", {}).get("event_name")
+
+    if event_name in ["order_created", "subscription_created"]:
+        custom_data = data.get("meta", {}).get("custom_data", {})
+        user_id = custom_data.get("user_id")
+
+        if user_id and supabase:
+            print(f"🍋 Paiement reçu pour user : {user_id}")
+            try:
+                supabase.table('users').update({
+                    'is_premium': True,
+                    'plan_type': 'premium',
+                    'energy': 999
+                }).eq('id', user_id).execute()
+                print("✅ Premium activé")
+            except Exception as e:
+                print(f"❌ Erreur Supabase: {e}")
+
+    return {"received": True}
 
 if __name__ == "__main__":
     import uvicorn
