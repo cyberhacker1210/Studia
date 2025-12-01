@@ -1,32 +1,90 @@
+"""
+Learning Path Generator - Full Version
+"""
 import json
 import os
-from typing import List
+from typing import List, Dict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def generate_diagnostic_quiz(course_text: str) -> dict:
-    print("🧬 Génération Diagnostic...")
-    prompt = f"""Tu es un expert pédagogique. Crée un quiz de diagnostic de 5 questions pour évaluer la compréhension globale de ce cours.
-    
-    Chaque question doit tester un concept clé différent.
-    
-    COURS : {course_text[:15000]}
 
-    JSON ATTENDU :
+# --- 1. FONCTION PRINCIPALE (Celle qui manquait) ---
+def generate_mastery_path(course_text: str) -> dict:
+    """
+    Génère le parcours complet en 3 modules (Micro-Learning)
+    Appelé par /api/path/generate
+    """
+    print("🧬 Génération Parcours Micro-Learning (Map)...")
+
+    prompt = f"""Tu es un architecte pédagogique. Découpe ce cours en 3 modules progressifs pour un apprentissage sur 3 jours.
+
+    COURS (Extrait) :
+    {course_text[:15000]}
+
+    FORMAT JSON ATTENDU (Strictement) :
     {{
-      "questions": [
+      "modules": [
         {{
-          "question": "...",
-          "options": ["A","B","C","D"],
-          "correct_index": 0,
-          "explanation": "...",
-          "concept": "Nom du concept testé (ex: Dates, Définitions, Formules)"
+          "title": "Jour 1 : Les Bases",
+          "description": "Comprendre les concepts clés.",
+          "content": "Résumé clair en Markdown...",
+          "quiz": [
+             {{ "question": "...", "options": ["A","B"], "correct_index": 0, "explanation": "..." }}
+          ]
+        }},
+        {{
+          "title": "Jour 2 : Approfondissement",
+          "description": "Analyse détaillée.",
+          "content": "Contenu détaillé en Markdown...",
+          "quiz": [ ... ]
+        }},
+        {{
+          "title": "Jour 3 : Maîtrise",
+          "description": "Application et synthèse.",
+          "content": "Synthèse finale en Markdown...",
+          "quiz": [ ... ]
         }}
       ]
     }}
+
+    RÈGLES :
+    - 3 Modules exactement.
+    - Chaque module a 2 questions de quiz.
+    - Réponds UNIQUEMENT en JSON valide.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"Error generate_mastery_path: {e}")
+        # Fallback en cas d'erreur pour ne pas crasher le front
+        return {
+            "modules": [
+                {
+                    "title": "Module 1 (Erreur IA)",
+                    "description": "Impossible de générer le contenu.",
+                    "content": "Désolé, une erreur est survenue. Réessayez.",
+                    "quiz": []
+                }
+            ]
+        }
+
+
+# --- 2. FONCTIONS ADAPTATIVES (Diagnostic/Remediation) ---
+
+def generate_diagnostic_quiz(course_text: str) -> dict:
+    print("🧬 Génération Diagnostic...")
+    prompt = f"""Crée un quiz de diagnostic de 5 questions.
+    COURS : {course_text[:15000]}
+    JSON : {{ "questions": [ {{ "question": "...", "options": ["..."], "correct_index": 0, "explanation": "...", "concept": "..." }} ] }}
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -34,28 +92,16 @@ def generate_diagnostic_quiz(course_text: str) -> dict:
         messages=[{"role": "user", "content": prompt}]
     )
     return json.loads(response.choices[0].message.content)
+
 
 def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int) -> dict:
-    print(f"💊 Génération Remédiation (Niveau {difficulty}) pour : {weak_concepts}")
-    
+    print(f"💊 Génération Remédiation pour : {weak_concepts}")
     concepts_str = ", ".join(weak_concepts)
-    
-    prompt = f"""L'élève a échoué sur les concepts suivants : {concepts_str}.
-    
-    1. Réexplique ces concepts de manière ultra-claire et pédagogique (style "C'est pas sorcier").
-    2. Crée 3 flashcards spécifiques pour mémoriser ces points.
-    
-    Niveau de difficulté actuel : {difficulty}/3 (1=Basique, 3=Expert).
-    
-    COURS : {course_text[:15000]}
 
-    JSON ATTENDU :
-    {{
-      "text": "Explication en Markdown...",
-      "flashcards": [
-        {{ "front": "Question/Concept", "back": "Réponse" }}
-      ]
-    }}
+    prompt = f"""Explique ces concepts ratés : {concepts_str}.
+    Niveau : {difficulty}/3.
+    COURS : {course_text[:15000]}
+    JSON : {{ "text": "Markdown...", "flashcards": [ {{ "front": "...", "back": "..." }} ] }}
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -63,37 +109,14 @@ def generate_remediation_content(course_text: str, weak_concepts: List[str], dif
         messages=[{"role": "user", "content": prompt}]
     )
     return json.loads(response.choices[0].message.content)
+
 
 def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: int) -> dict:
     print(f"🎯 Génération Validation (Niveau {difficulty})...")
-    
-    focus_instruction = ""
-    if concepts:
-        focus_instruction = f"Concentre les questions sur ces concepts : {', '.join(concepts)}."
-    
-    difficulty_prompt = ""
-    if difficulty == 1: difficulty_prompt = "Questions simples et directes."
-    elif difficulty == 2: difficulty_prompt = "Questions pièges ou d'application."
-    elif difficulty == 3: difficulty_prompt = "Questions complexes demandant de la réflexion."
-
-    prompt = f"""Crée un quiz de validation de 5 questions.
-    {focus_instruction}
-    {difficulty_prompt}
-    
+    prompt = f"""Quiz de validation 5 questions. Niveau {difficulty}.
+    Concepts : {concepts}
     COURS : {course_text[:15000]}
-
-    JSON ATTENDU :
-    {{
-      "questions": [
-        {{
-          "question": "...",
-          "options": ["..."],
-          "correct_index": 0,
-          "explanation": "...",
-          "concept": "..."
-        }}
-      ]
-    }}
+    JSON : {{ "questions": [ {{ "question": "...", "options": ["..."], "correct_index": 0, "explanation": "...", "concept": "..." }} ] }}
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -102,7 +125,31 @@ def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: 
     )
     return json.loads(response.choices[0].message.content)
 
-# ... (Garder les autres fonctions existantes comme chat_with_tutor) ...
+
+# --- 3. FONCTIONS UTILITAIRES ---
+
+def evaluate_student_answer(instruction: str, student_answer: str, course_context: str) -> dict:
+    prompt = f"""Corrige. Context: {course_context[:1000]}. Q: {instruction}. R: {student_answer}.
+    JSON: {{ "is_correct": bool, "feedback": "string", "score": int }}"""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return json.loads(response.choices[0].message.content)
+
+
+def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
+    prompt = f"""Coach productivité. But: {goal}. Deadline: {deadline}.
+    JSON: {{ "daily_message": "...", "quote": "...", "micro_tasks": [{{ "id": 1, "task": "...", "xp_reward": 20 }}] }}"""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return json.loads(response.choices[0].message.content)
+
+
 def chat_with_tutor(history: List[dict], course_context: str) -> str:
     clean_history = [{"role": "system", "content": f"Tuteur Socratique. Contexte: {course_context[:3000]}"}]
     for msg in history:
