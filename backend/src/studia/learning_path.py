@@ -13,70 +13,40 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- 1. FONCTION PRINCIPALE (Celle qui manquait) ---
 def generate_mastery_path(course_text: str) -> dict:
-    """
-    Génère le parcours complet en 3 modules (Micro-Learning)
-    Appelé par /api/path/generate
-    """
-    print("🧬 Génération Parcours Micro-Learning (Map)...")
+    print("🧬 Génération Parcours Thématique...")
 
-    prompt = f"""Tu es un architecte pédagogique. Découpe ce cours en 3 modules progressifs pour un apprentissage sur 3 jours.
+    prompt = f"""Tu es un architecte pédagogique. Analyse ce cours et découpe-le en 3 à 5 modules thématiques logiques (pas de "Jour 1", mais des vrais titres).
+
+    STRUCTURE DU PARCOURS :
+    1. Module 0 : "Diagnostic Initial" (Quiz global pour voir le niveau)
+    2. Module 1 : [Titre du premier grand concept]
+    3. Module 2 : [Titre du deuxième grand concept]
+    ...
+    X. Module Final : "Validation des Acquis" (Grand Chelem)
 
     COURS (Extrait) :
     {course_text[:15000]}
 
-    FORMAT JSON ATTENDU (Strictement) :
+    FORMAT JSON ATTENDU :
     {{
       "modules": [
         {{
-          "title": "Jour 1 : Les Bases",
-          "description": "Comprendre les concepts clés.",
-          "content": "Résumé clair en Markdown...",
-          "quiz": [
-             {{ "question": "...", "options": ["A","B"], "correct_index": 0, "explanation": "..." }}
-          ]
+          "title": "Diagnostic Initial",
+          "description": "Évaluation de départ.",
+          "type": "quiz_only",
+          "quiz": [ ... 5 questions globales ... ]
         }},
         {{
-          "title": "Jour 2 : Approfondissement",
-          "description": "Analyse détaillée.",
-          "content": "Contenu détaillé en Markdown...",
-          "quiz": [ ... ]
+          "title": "Concept 1 : [Nom]",
+          "description": "Apprentissage du premier pilier.",
+          "type": "learning",
+          "content": "Cours structuré en Markdown...",
+          "quiz": [ ... 3 questions de vérification ... ]
         }},
-        {{
-          "title": "Jour 3 : Maîtrise",
-          "description": "Application et synthèse.",
-          "content": "Synthèse finale en Markdown...",
-          "quiz": [ ... ]
-        }}
+        ...
       ]
     }}
-
-    RÈGLES :
-    - 3 Modules exactement.
-    - Chaque module a 2 questions de quiz.
-    - Réponds UNIQUEMENT en JSON valide.
     """
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            response_format={"type": "json_object"},
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        print(f"Error generate_mastery_path: {e}")
-        # Fallback en cas d'erreur pour ne pas crasher le front
-        return {
-            "modules": [
-                {
-                    "title": "Module 1 (Erreur IA)",
-                    "description": "Impossible de générer le contenu.",
-                    "content": "Désolé, une erreur est survenue. Réessayez.",
-                    "quiz": []
-                }
-            ]
-        }
-
 
 # --- 2. FONCTIONS ADAPTATIVES (Diagnostic/Remediation) ---
 

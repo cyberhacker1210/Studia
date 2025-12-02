@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Check, X, ArrowDown, Trophy, Sparkles } from 'lucide-react';
+import { Check, X, ArrowDown, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface Question {
-  id: number;
+  id?: number;
   question: string;
   options: string[];
   correct_index: number;
@@ -24,7 +24,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
   const [validatedSteps, setValidatedSteps] = useState<{ [key: number]: boolean }>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Scroll automatique vers le bas quand une nouvelle question apparaît
   useEffect(() => {
     if (activeQuestionIndex > 0) {
       setTimeout(() => {
@@ -34,7 +33,7 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
   }, [activeQuestionIndex]);
 
   const handleSelect = (qIndex: number, optionIndex: number) => {
-    if (validatedSteps[qIndex]) return; // Bloqué si déjà validé
+    if (validatedSteps[qIndex]) return;
     setAnswers(prev => ({ ...prev, [qIndex]: optionIndex }));
   };
 
@@ -45,7 +44,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
     setValidatedSteps(prev => ({ ...prev, [qIndex]: true }));
 
     if (isCorrect) {
-      // Animation XP
       onXpGain(10);
       confetti({
         particleCount: 30,
@@ -60,7 +58,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
     if (activeQuestionIndex < questions.length - 1) {
       setActiveQuestionIndex(prev => prev + 1);
     } else {
-      // Fin du quiz
       const score = Object.keys(answers).reduce((acc, key) => {
         const idx = Number(key);
         return acc + (answers[idx] === questions[idx].correct_index ? 1 : 0);
@@ -73,7 +70,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
     <div className="max-w-2xl mx-auto pb-32 space-y-12">
 
       {questions.map((q, idx) => {
-        // On n'affiche que les questions actives ou passées
         if (idx > activeQuestionIndex) return null;
 
         const isSelected = answers[idx] !== undefined;
@@ -81,10 +77,10 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
         const isCorrect = isValidated && answers[idx] === q.correct_index;
         const isWrong = isValidated && !isCorrect;
 
+        // CORRECTION : Utilisation de l'index comme clé de secours si pas d'ID
         return (
-          <div key={q.id} className={`transition-all duration-700 ${idx === activeQuestionIndex ? 'opacity-100 translate-y-0' : 'opacity-100'}`}>
+          <div key={q.id || idx} className={`transition-all duration-700 ${idx === activeQuestionIndex ? 'opacity-100 translate-y-0' : 'opacity-100'}`}>
 
-            {/* Question Card */}
             <div className={`bg-white border-2 rounded-[2rem] p-8 shadow-sm transition-colors duration-500 ${isValidated ? (isCorrect ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30') : 'border-slate-100'}`}>
               <h3 className="text-xl font-extrabold text-slate-900 mb-6">{q.question}</h3>
 
@@ -121,7 +117,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
                 })}
               </div>
 
-              {/* Feedback Zone (Slide Down) */}
               <div className={`grid transition-all duration-500 ease-out ${isValidated ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0'}`}>
                 <div className="overflow-hidden">
                   <div className={`p-4 rounded-xl border-l-4 ${isCorrect ? 'bg-green-100 border-green-500 text-green-900' : 'bg-red-50 border-red-500 text-red-900'}`}>
@@ -131,7 +126,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
                     <p className="text-sm leading-relaxed opacity-90">{q.explanation}</p>
                   </div>
 
-                  {/* Bouton Suivant (Uniquement sur la dernière question active) */}
                   {idx === activeQuestionIndex && (
                       <button
                         onClick={handleNext}
@@ -143,7 +137,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
                 </div>
               </div>
 
-              {/* Bouton Valider (Avant validation) */}
               {!isValidated && (
                 <div className="mt-6 flex justify-end">
                     <button
@@ -160,7 +153,6 @@ export default function BrilliantQuiz({ questions, onComplete, onXpGain }: Brill
         );
       })}
 
-      {/* Ancre pour le scroll */}
       <div ref={bottomRef} className="h-10" />
     </div>
   );
