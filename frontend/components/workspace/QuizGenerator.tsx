@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { Loader2, Brain, Zap, FileText, Settings } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import { generateQuizFromImage, Quiz } from '@/lib/api';
 import { saveCourse } from '@/lib/courseService';
-// 👇 Import Hook
-import { useEnergy } from '@/hooks/useEnergy';
-import { useRouter } from 'next/navigation';
+import { useEnergy } from '@/hooks/useEnergy'; // 👈 Import vital
 
 interface QuizGeneratorProps {
   onQuizGenerated: (quiz: Quiz) => void;
@@ -35,11 +34,12 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
   const handleGenerateQuiz = async () => {
     if (!selectedImage || !user) return;
 
-    // 🛑 VÉRIFICATION ÉNERGIE (Coût: 1)
+    // 🛑 VÉRIFICATION D'ÉNERGIE (Coût: 1 éclair)
     const canProceed = await consumeEnergy(1);
 
     if (!canProceed) {
-        if (confirm("⚡️ Énergie épuisée !\n\nVous avez utilisé vos éclairs quotidiens. Passez Premium pour un accès illimité ou attendez demain.\n\nVoir les offres Premium ?")) {
+        // Si pas assez d'énergie -> Redirection vers Pricing
+        if (confirm("⚡️ Plus d'énergie !\n\nVous avez utilisé vos éclairs quotidiens. Passez Premium pour un accès illimité ou attendez demain.\n\nVoir les offres Premium ?")) {
             router.push('/workspace/pricing');
         }
         return;
@@ -49,8 +49,10 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
       setLoading(true);
       setError(null);
 
+      // Génération
       const quiz = await generateQuizFromImage(selectedImage, numQuestions, difficulty);
 
+      // Sauvegarde du cours extrait
       if (quiz.extractedText) {
           const autoTitle = `Quiz Photo - ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`;
           await saveCourse(user.id, quiz.extractedText, autoTitle);
@@ -69,12 +71,14 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
 
+      {/* Zone d'Upload */}
       <ImageUpload
         onImageSelected={handleImageSelected}
         selectedImage={selectedImage}
         onClear={() => setSelectedImage(null)}
       />
 
+      {/* Panneau de Configuration */}
       {selectedImage && (
         <div className="card-b">
           <div className="flex items-center gap-2 mb-8 border-b border-slate-100 pb-4">
@@ -82,6 +86,7 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
               <h3 className="text-xl font-extrabold text-slate-900">Configuration</h3>
           </div>
 
+          {/* Slider : Nombre de questions */}
           <div className="mb-8">
             <div className="flex justify-between mb-4 font-bold text-slate-700">
                 <span className="flex items-center gap-2"><FileText size={18}/> Questions</span>
@@ -102,6 +107,7 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
             </div>
           </div>
 
+          {/* Sélecteur : Difficulté */}
           <div className="mb-10">
             <label className="block font-bold text-slate-700 mb-4 flex items-center gap-2">
                 <Brain size={18}/> Difficulté
@@ -126,6 +132,7 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
             </div>
           </div>
 
+          {/* Bouton d'Action Principal (Avec coût en énergie) */}
           <button
             onClick={handleGenerateQuiz}
             disabled={loading || !user}
@@ -141,11 +148,12 @@ export default function QuizGenerator({ onQuizGenerated }: QuizGeneratorProps) {
                     <Zap size={20} className="fill-yellow-400 text-yellow-400"/>
                     Générer le Quiz
                     {/* Affichage du coût */}
-                    {!isPremium && <span className="ml-2 text-xs bg-slate-800 text-yellow-400 px-2 py-0.5 rounded-full">-1 ⚡️</span>}
+                    {!isPremium && <span className="ml-2 text-xs bg-slate-800 text-yellow-400 px-2 py-0.5 rounded-full font-bold">-1 ⚡️</span>}
                 </>
             )}
           </button>
 
+          {/* Message d'erreur */}
           {error && (
               <div className="mt-6 p-4 bg-red-50 border-2 border-red-100 text-red-600 rounded-2xl font-bold text-center animate-in zoom-in">
                   ⚠️ {error}

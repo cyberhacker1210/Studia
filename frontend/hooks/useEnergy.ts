@@ -6,10 +6,12 @@ import { supabase } from '@/lib/supabase';
 
 export function useEnergy() {
   const { user, isLoaded } = useUser();
-  const [energy, setEnergy] = useState(5);
+  // On part de 4 (ou 5) pour l'affichage initial optimiste
+  const [energy, setEnergy] = useState(4);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Fonction pour recharger les données réelles
   const refreshEnergy = async () => {
     if (!user) return;
 
@@ -24,19 +26,20 @@ export function useEnergy() {
         setIsPremium(data.is_premium || false);
 
         if (data.is_premium) {
-            setEnergy(999);
+            setEnergy(999); // Infini
         } else {
+            // Vérification du reset quotidien
             const lastDate = new Date(data.last_energy_refill).toDateString();
             const today = new Date().toDateString();
 
             if (lastDate !== today) {
                 await supabase.from('users').update({
-                    energy: 5,
+                    energy: 4,
                     last_energy_refill: new Date().toISOString()
                 }).eq('id', user.id);
-                setEnergy(5);
+                setEnergy(4);
             } else {
-                setEnergy(data.energy ?? 5);
+                setEnergy(data.energy ?? 4);
             }
         }
       }
@@ -47,21 +50,24 @@ export function useEnergy() {
     }
   };
 
+  // Fonction pour consommer de l'énergie (utilisée par les boutons)
   const consumeEnergy = async (amount: number): Promise<boolean> => {
-    if (isPremium) return true;
-    if (energy < amount) return false;
+    if (isPremium) return true; // Gratuit pour les premiums
+    if (energy < amount) return false; // Pas assez d'énergie
 
     const newAmount = energy - amount;
-    setEnergy(newAmount);
+    setEnergy(newAmount); // Mise à jour visuelle immédiate (Optimistic UI)
 
     if (user) {
         await supabase.from('users').update({ energy: newAmount }).eq('id', user.id);
+
+        // 🔥 SIGNAL GLOBAL : Dire à toute l'app (Sidebar, etc.) de se mettre à jour
         window.dispatchEvent(new Event('energy-updated'));
     }
     return true;
   };
 
-  // 👇 NOUVEAU : Fonction de remboursement
+  // Fonction de remboursement (en cas d'erreur API)
   const refundEnergy = async (amount: number) => {
     if (isPremium) return;
     const newAmount = energy + amount;
@@ -76,17 +82,31 @@ export function useEnergy() {
 
   useEffect(() => {
     if (isLoaded && user) {
+        // 1. Chargement initial
         refreshEnergy();
+
+        // 2. Écouteur local (quand un autre composant déclenche consumeEnergy)
         const handleLocalUpdate = () => refreshEnergy();
         window.addEventListener('energy-updated', handleLocalUpdate);
 
+        // 3. Écouteur Temps Réel (si Supabase change à distance)
         const subscription = supabase
           .channel('realtime-energy')
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
-          (payload) => {
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'users',
+              filter: `id=eq.${user.id}`
+            },
+            (payload) => {
               const newEnergy = payload.new.energy;
-              if (typeof newEnergy === 'number') setEnergy(newEnergy);
-          })
+              if (typeof newEnergy === 'number') {
+                setEnergy(newEnergy);
+              }
+            }
+          )
           .subscribe();
 
         return () => {
