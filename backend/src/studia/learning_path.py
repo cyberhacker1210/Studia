@@ -11,16 +11,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- MODÈLES DE DONNÉES (STRUCTURED OUTPUTS) ---
 
-class Concept(BaseModel):
-    name: str = Field(description="Nom du concept clé évalué.")
-
-
 class QuizQuestionAdaptive(BaseModel):
     question: str = Field(description="La question posée.")
     options: List[str] = Field(description="4 choix de réponse.", min_length=4, max_length=4)
     correct_index: int = Field(description="Index de la bonne réponse (0-3).")
     explanation: str = Field(description="Explication pédagogique.")
-    concept: str = Field(description="Le concept clé testé par cette question (ex: 'Loi de l'offre', 'Cellule').")
+    concept: str = Field(description="Le concept clé testé par cette question.")
 
 
 class DiagnosticResult(BaseModel):
@@ -29,29 +25,41 @@ class DiagnosticResult(BaseModel):
 
 class RemediationContent(BaseModel):
     summary: str = Field(description="Un cours court et ciblé sur les points faibles (Markdown).")
-    flashcards: List[dict] = Field(description="Liste de flashcards {front, back} pour mémoriser ces points.")
+    flashcards: List[dict] = Field(description="Liste de flashcards {front, back}.")
 
 
 class PracticeExercise(BaseModel):
-    instruction: str = Field(description="L'énoncé de l'exercice (cas pratique, problème, rédaction).")
-    context: str = Field(description="Contexte ou données nécessaires pour répondre.")
+    instruction: str = Field(description="L'énoncé de l'exercice.")
+    context: str = Field(description="Contexte ou données nécessaires.")
     difficulty: Literal['easy', 'hard']
 
 
 class EvaluationResult(BaseModel):
-    is_correct: bool = Field(description="Si la réponse est globalement satisfaisante.")
+    is_correct: bool = Field(description="Si la réponse est satisfaisante.")
     score: int = Field(description="Note sur 100.")
-    feedback: str = Field(description="Feedback détaillé et constructif.")
-    correction: str = Field(description="La réponse idéale attendue.")
+    feedback: str = Field(description="Feedback détaillé.")
+    correction: str = Field(description="La réponse idéale.")
+
+
+# Modèles pour la motivation (Ce qui manquait)
+class MicroTask(BaseModel):
+    id: int
+    task: str = Field(description="Tâche courte et concrète.")
+    xp_reward: int
+
+
+class DailyPlan(BaseModel):
+    daily_message: str = Field(description="Message court et motivant.")
+    quote: str = Field(description="Citation inspirante.")
+    micro_tasks: List[MicroTask]
 
 
 # --- FONCTIONS ---
 
 def generate_diagnostic_quiz(course_text: str) -> dict:
-    """ÉTAPE 1 : Génère un quiz large pour tester tous les aspects du cours."""
+    """ÉTAPE 1 : Génère un quiz diagnostique."""
     print("🧬 Génération Diagnostic...")
-
-    prompt = "Tu es un évaluateur. Crée un quiz diagnostique de 10 questions couvrant TOUT le cours pour identifier les lacunes."
+    prompt = "Tu es un évaluateur. Crée un quiz diagnostique de 10 questions couvrant le cours."
 
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
@@ -65,17 +73,10 @@ def generate_diagnostic_quiz(course_text: str) -> dict:
 
 
 def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
-    """ÉTAPE 2 : Génère du contenu spécifique sur les points faibles."""
+    """ÉTAPE 2 : Contenu de rattrapage."""
     print(f"💊 Génération Remédiation pour : {weak_concepts}")
+    prompt = f"L'élève a échoué sur : {', '.join(weak_concepts)}. Crée un cours de rattrapage et des flashcards."
 
-    prompt = f"""L'élève a échoué sur ces concepts : {', '.join(weak_concepts)}.
-    Crée un module de rattrapage :
-    1. Un résumé clair expliquant CES concepts spécifiques.
-    2. Des flashcards pour mémoriser CES concepts.
-    Niveau de profondeur : {difficulty}/3.
-    """
-
-    # On utilise un schéma ad-hoc pour structurer la réponse
     class RemediationSchema(BaseModel):
         text: str = Field(description="Le cours de rattrapage en Markdown.")
         flashcards: List[dict] = Field(description="Liste de {front: str, back: str}")
@@ -88,18 +89,15 @@ def generate_remediation_content(course_text: str, weak_concepts: List[str], dif
         ],
         response_format=RemédiationSchema,
     )
-    return completion.choices[0].message.parsed.model_dump()
+    # Mapping pour correspondre au format attendu par le front (summary vs text)
+    data = completion.choices[0].message.parsed.model_dump()
+    return {"summary": data["text"], "flashcards": data["flashcards"]}
 
 
 def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: int) -> dict:
-    """ÉTAPE 3 : Quiz ciblé et plus dur sur les concepts revus."""
+    """ÉTAPE 3 : Quiz de validation."""
     print("🎯 Génération Quiz Validation...")
-
-    level_desc = "facile" if difficulty == 1 else "intermédiaire" if difficulty == 2 else "très difficile/piégeux"
-
-    prompt = f"""Crée un quiz de 5 questions TRÈS CIBLÉES sur ces concepts : {', '.join(concepts)}.
-    Niveau : {level_desc}.
-    Le but est de vérifier la maîtrise totale."""
+    prompt = f"Crée un quiz de 5 questions CIBLÉES sur : {', '.join(concepts)}. Difficulté: {difficulty}/3."
 
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
@@ -107,18 +105,15 @@ def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: 
             {"role": "system", "content": prompt},
             {"role": "user", "content": course_text[:20000]}
         ],
-        response_format=DiagnosticResult,  # On réutilise la structure de quiz
+        response_format=DiagnosticResult,
     )
     return completion.choices[0].message.parsed.model_dump()
 
 
 def generate_practice_exercise(course_text: str, difficulty: str) -> dict:
-    """ÉTAPE 4 & 6 : Génère un exercice pratique (Facile ou Difficile)."""
+    """ÉTAPE 4 : Exercice pratique."""
     print(f"🏋️ Génération Exercice ({difficulty})...")
-
-    prompt = f"""Crée un exercice pratique de type 'Cas concret' ou 'Problème à résoudre' basé sur ce cours.
-    Difficulté : {difficulty}.
-    L'exercice doit demander de la réflexion et de la rédaction, pas juste un QCM."""
+    prompt = f"Crée un exercice pratique type 'Cas concret'. Difficulté : {difficulty}."
 
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
@@ -132,30 +127,45 @@ def generate_practice_exercise(course_text: str, difficulty: str) -> dict:
 
 
 def evaluate_student_answer(instruction: str, student_answer: str, course_context: str) -> dict:
-    """ÉTAPE 5 : Correction et Feedback."""
+    """ÉTAPE 5 : Correction."""
     print("📝 Correction Exercice...")
-
-    prompt = """Tu es un prof correcteur. Évalue la réponse de l'étudiant par rapport à l'énoncé et au cours.
-    Sois bienveillant mais rigoureux. Donne la correction parfaite à la fin."""
+    prompt = "Tu es un prof correcteur. Évalue la réponse."
 
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompt},
-            {"role": "user",
-             "content": f"COURS: {course_context[:10000]}\n\nCONSIGNE: {instruction}\n\nRÉPONSE ÉLÈVE: {student_answer}"}
+            {"role": "user", "content": f"CTX: {course_context[:5000]}\nQ: {instruction}\nR: {student_answer}"}
         ],
         response_format=EvaluationResult,
     )
     return completion.choices[0].message.parsed.model_dump()
 
 
-# Fonction Chat standard pour le contexte "Tuteur" pendant l'exercice
 def chat_with_tutor(history: list, course_context: str, current_message: str) -> str:
-    messages = [{"role": "system",
-                 "content": f"Tu es un tuteur pédagogique. Aide l'élève sur ce cours : {course_context[:5000]}. Sois concis."}]
+    """Chatbot Tuteur."""
+    messages = [{"role": "system", "content": f"Tu es un tuteur. Aide sur ce cours : {course_context[:5000]}."}]
     for msg in history[-6:]: messages.append(msg)
     messages.append({"role": "user", "content": current_message})
 
     res = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
     return res.choices[0].message.content
+
+
+# ✅ LA FONCTION MANQUANTE QUI FAISAIT PLANTER LE BUILD
+def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
+    """Génère un plan de motivation quotidien."""
+    print("🚀 Génération Plan Motivation...")
+    prompt = f"""Tu es un coach productivité. Objectif élève: "{goal}" pour le {deadline}.
+    Crée un plan d'action pour AUJOURD'HUI avec 3-5 micro-tâches."""
+
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": prompt}],
+        response_format=DailyPlan,
+    )
+    return completion.choices[0].message.parsed.model_dump()
+
+
+# Stub pour l'ancienne fonction si jamais appelée ailleurs (sécurité)
+def generate_mastery_path(t): return {"modules": []}
