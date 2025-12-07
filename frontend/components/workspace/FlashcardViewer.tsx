@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, Check, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, Check, X, AlertCircle } from 'lucide-react';
 import { Flashcard } from '@/lib/flashcardService';
 import { useUser } from '@clerk/nextjs';
 import { addXp } from '@/lib/gamificationService';
@@ -14,6 +14,18 @@ interface FlashcardViewerProps {
 export default function FlashcardViewer({ flashcards, onProgress }: FlashcardViewerProps) {
   const { user } = useUser();
 
+  // 🛡️ SÉCURITÉ ANTI-CRASH
+  // Si les données sont corrompues ou vides, on affiche un message au lieu de planter
+  if (!flashcards || !Array.isArray(flashcards) || flashcards.length === 0) {
+    return (
+      <div className="p-10 text-center border-2 border-slate-100 rounded-[2.5rem] bg-slate-50 flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="text-slate-400" size={32} />
+        <p className="font-bold text-slate-500 text-lg">Aucune flashcard disponible.</p>
+        <p className="text-sm text-slate-400">L'IA n'a pas pu générer de cartes pour cette section.</p>
+      </div>
+    );
+  }
+
   // --- State ---
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -25,7 +37,9 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   const [mode, setMode] = useState<'normal' | 'review'>('normal');
 
   const hasAddedXp = useRef(false);
-  const currentCard = activeDeck[currentIndex];
+
+  // Sécurité supplémentaire pour l'accès à l'index
+  const currentCard = activeDeck[currentIndex] || { front: "Erreur", back: "Carte introuvable" };
   const progress = Math.round(((currentIndex) / activeDeck.length) * 100);
 
   const handleResponse = (known: boolean) => {

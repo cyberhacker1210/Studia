@@ -75,23 +75,50 @@ def generate_diagnostic_quiz(course_text: str) -> dict:
 def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
     """ÉTAPE 2 : Contenu de rattrapage."""
     print(f"💊 Génération Remédiation pour : {weak_concepts}")
-    prompt = f"L'élève a échoué sur : {', '.join(weak_concepts)}. Crée un cours de rattrapage et des flashcards."
+
+    # On limite la taille du texte pour éviter les erreurs de tokens
+    safe_text = course_text[:15000]
+
+    prompt = f"""L'élève a échoué sur ces concepts : {', '.join(weak_concepts)}.
+    Crée un module de rattrapage structuré.
+
+    RÈGLES :
+    1. Le champ 'text' doit être un cours Markdown clair.
+    2. Le champ 'flashcards' doit contenir au moins 3 cartes.
+    3. Chaque flashcard doit avoir un 'front' et un 'back'.
+    """
 
     class RemediationSchema(BaseModel):
         text: str = Field(description="Le cours de rattrapage en Markdown.")
         flashcards: List[dict] = Field(description="Liste de {front: str, back: str}")
 
-    completion = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": course_text[:20000]}
-        ],
-        response_format=RemédiationSchema,
-    )
-    # Mapping pour correspondre au format attendu par le front (summary vs text)
-    data = completion.choices[0].message.parsed.model_dump()
-    return {"summary": data["text"], "flashcards": data["flashcards"]}
+    try:
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": safe_text}
+            ],
+            response_format=RemédiationSchema,
+        )
+
+        data = completion.choices[0].message.parsed.model_dump()
+
+        # Sécurité : Si la liste est vide, on en crée une par défaut
+        if not data.get("flashcards"):
+            data["flashcards"] = [
+                {"front": "Concept clé manquant", "back": "Une erreur est survenue lors de la génération."}
+            ]
+
+        return {"summary": data["text"], "flashcards": data["flashcards"]}
+
+    except Exception as e:
+        print(f"❌ Erreur Remediation: {e}")
+        # Fallback pour ne pas faire planter le frontend
+        return {
+            "summary": "# Erreur de génération\n\nDésolé, je n'ai pas pu générer le cours de rattrapage. Veuillez réessayer.",
+            "flashcards": [{"front": "Erreur", "back": "Veuillez réessayer."}]
+        }
 
 
 def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: int) -> dict:
