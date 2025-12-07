@@ -34,49 +34,44 @@ export default function QuizResults({
 
   useEffect(() => {
     const saveResultAndXp = async () => {
-      // On vérifie que l'utilisateur est chargé et qu'on n'a pas déjà sauvegardé
       if (user && !hasSaved.current) {
         hasSaved.current = true;
         setIsSaving(true);
 
         try {
-          // 1. Donner l'XP
+          // 1. XP
           const xpAmount = 10 + percentage;
           await addXp(user.id, xpAmount, `Quiz terminé (${percentage}%)`);
 
-          console.log("💾 Tentative sauvegarde historique...");
+          console.log("💾 Sauvegarde historique...");
 
-          // 2. Préparer un JSON "propre" et léger pour la base de données
-          // (On évite d'envoyer des objets trop complexes ou avec des types bizarres)
-          const cleanQuestions = quiz.questions.map(q => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation || ""
-          }));
+          // ✅ CORRECTION CRITIQUE : Nettoyage des données
+          // On crée un objet JSON pur (pas de classes, pas de méthodes)
+          const cleanQuizData = {
+            questions: quiz.questions.map(q => ({
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation
+            }))
+          };
 
           const { error } = await supabase.from('quiz_history').insert({
             user_id: user.id,
-            quiz_data: cleanQuestions, // On stocke juste le tableau de questions
+            quiz_data: cleanQuizData, // On envoie l'objet propre
             score: score,
             total_questions: quiz.questions.length,
-            difficulty: 'medium', // Valeur par défaut si manquante
-            source: 'text',       // Valeur par défaut si manquante
+            difficulty: quiz.difficulty || 'medium',
+            source: 'text',
             answers: userAnswers,
             created_at: new Date().toISOString()
           });
 
-          if (error) {
-            // On lance une vraie erreur avec le message pour le debug
-            throw new Error(error.message || "Erreur inconnue Supabase");
-          }
-
-          console.log("✅ Quiz sauvegardé avec succès !");
+          if (error) throw error;
+          console.log("✅ Sauvegarde réussie");
 
         } catch (err: any) {
-          // Log détaillé de l'erreur
-          console.error("❌ Erreur sauvegarde quiz:", err.message || err);
+          console.error("❌ Erreur sauvegarde:", err.message || err);
         } finally {
           setIsSaving(false);
         }
@@ -89,7 +84,6 @@ export default function QuizResults({
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
 
-      {/* Score Card */}
       <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 text-center shadow-sm mb-8 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
 

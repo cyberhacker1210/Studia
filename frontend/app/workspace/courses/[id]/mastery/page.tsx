@@ -3,297 +3,260 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { Loader2, ArrowLeft, PenTool, ChevronRight, Award, RotateCcw, CheckCircle, Layers, Brain } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, RefreshCcw } from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
-import { useEnergy } from '@/hooks/useEnergy'; // Utilise le hook corrigé
-import JourneyMap from '@/components/workspace/JourneyMap';
-import BrilliantQuiz from '@/components/workspace/BrilliantQuiz';
+import QuizDisplay from '@/components/workspace/QuizDisplay';
 import FlashcardViewer from '@/components/workspace/FlashcardViewer';
-import { supabase } from '@/lib/supabase';
+import PracticeInterface from '@/components/workspace/PracticeInterface';
 import ReactMarkdown from 'react-markdown';
 import confetti from 'canvas-confetti';
 
-interface Module {
-  title: string;
-  description: string;
-  type: 'diagnostic' | 'remediation' | 'deep_dive' | 'final_review' | 'exam';
-  status: 'locked' | 'current' | 'completed';
-  content?: string;
-  quiz?: any[];
-  flashcards?: any[];
-  practice?: any;
-}
+// Les étapes du parcours
+type Step = 'loading' | 'diagnostic' | 'analysis' | 'remediation_learn' | 'remediation_flashcards' | 'remediation_quiz' | 'final_quiz' | 'practice_easy' | 'practice_hard' | 'success';
 
 export default function MasteryPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
 
-  // Hook Énergie
-  const { consumeEnergy, refundEnergy } = useEnergy();
+  const [step, setStep] = useState<Step>('loading');
+  const [courseText, setCourseText] = useState('');
 
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'map' | 'quiz' | 'flashcards' | 'learning' | 'practice' | 'finished'>('map');
-  const [modules, setModules] = useState<Module[]>([]);
-  const [currentModIdx, setCurrentModIdx] = useState(0);
-
-  const [practiceInput, setPracticeInput] = useState('');
-  const [showSolution, setShowSolution] = useState(false);
+  // Data State
+  const [diagnosticQuiz, setDiagnosticQuiz] = useState<any>(null);
+  const [weakConcepts, setWeakConcepts] = useState<string[]>([]);
+  const [remediationData, setRemediationData] = useState<any>(null);
+  const [validationQuiz, setValidationQuiz] = useState<any>(null);
+  const [finalQuiz, setFinalQuiz] = useState<any>(null);
+  const [currentExercise, setCurrentExercise] = useState<any>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  useEffect(() => { if (user && params.id) initPath(); }, [user, params.id]);
+  useEffect(() => {
+    if (user && params.id) {
+        const init = async () => {
+            const course = await getCourseById(Number(params.id), user.id);
+            setCourseText(course.extracted_text);
 
-  const initPath = async () => {
-    try {
-      const { data: progress } = await supabase.from('course_progress').select('current_module_index').eq('user_id', user!.id).eq('course_id', params.id).maybeSingle();
-      const savedIndex = progress?.current_module_index || 0;
-      setCurrentModIdx(savedIndex);
-
-      const cached = localStorage.getItem(`path_studia_v3_${params.id}`);
-      let loadedModules = [];
-
-      if (cached) {
-          loadedModules = JSON.parse(cached);
-          setModules(loadedModules);
-          setLoading(false);
-      } else {
-          // ⚡️ DÉBIT ÉNERGIE (COÛT 3 POUR LE PARCOURS COMPLET)
-          const canProceed = await consumeEnergy(3);
-
-          if (!canProceed) {
-              // Si pas assez d'énergie, on redirige immédiatement
-              if(confirm("⚡️ Pas assez d'énergie ! Il faut 3 éclairs pour générer ce parcours complet.")) {
-                  router.push('/workspace/pricing');
-              } else {
-                  router.push('/workspace/courses');
-              }
-              return;
-          }
-
-          const course = await getCourseById(Number(params.id), user!.id);
-          const res = await fetch(`${API_URL}/api/path/generate`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ course_text: course.extracted_text }),
-          });
-
-          if (!res.ok) throw new Error("Erreur API");
-          const data = await res.json();
-
-          if (!data.modules) {
-              await refundEnergy(3); // Remboursement en cas d'erreur IA
-              throw new Error("Données invalides");
-          }
-
-          loadedModules = data.modules.map((m: any, i: number) => ({
-              ...m,
-              status: i < savedIndex ? 'completed' : i === savedIndex ? 'current' : 'locked'
-          }));
-
-          setModules(loadedModules);
-          localStorage.setItem(`path_studia_v3_${params.id}`, JSON.stringify(loadedModules));
-          setLoading(false);
-      }
-
-      if (savedIndex >= loadedModules.length && loadedModules.length > 0) {
-          setView('finished');
-      }
-
-    } catch (e) {
-        console.error(e);
-        alert("Erreur de chargement.");
-        router.push('/workspace/courses');
+            // 1. Générer le Diagnostic
+            const res = await fetch(`${API_URL}/api/path/diagnostic`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_text: course.extracted_text })
+            });
+            const data = await res.json();
+            setDiagnosticQuiz(data); // data.questions
+            setStep('diagnostic');
+        };
+        init();
     }
-  };
+  }, [user, params.id]);
 
-  const startModule = (idx: number) => {
-      const mod = modules[idx];
-      setCurrentModIdx(idx);
+  // --- LOGIQUE DE TRANSITION ---
 
-      // Router selon le type de module
-      if (mod.type === 'diagnostic' || mod.type === 'final_review') {
-          setView('quiz');
-      } else if (mod.type === 'remediation') {
-          setView('flashcards');
-      } else if (mod.type === 'deep_dive') {
-          setView('learning');
-      } else if (mod.type === 'exam') {
-          setView('practice');
-      }
-  };
+  const handleDiagnosticComplete = (answers: number[]) => {
+      // Analyse des réponses
+      const mistakes: string[] = [];
+      diagnosticQuiz.questions.forEach((q: any, i: number) => {
+          // On utilise correct_index car c'est le format backend
+          const correct = q.correct_index ?? q.correctAnswer;
+          if (answers[i] !== correct) {
+              if (q.concept) mistakes.push(q.concept);
+          }
+      });
 
-  const handleNextStep = async () => {
-      const nextIndex = currentModIdx + 1;
+      // On dédoublonne
+      const uniqueMistakes = Array.from(new Set(mistakes));
+      setWeakConcepts(uniqueMistakes);
 
-      const newModules = [...modules];
-      newModules[currentModIdx].status = 'completed';
-      if (nextIndex < newModules.length) newModules[nextIndex].status = 'current';
-      setModules(newModules);
-
-      await supabase.from('course_progress').upsert({
-          user_id: user!.id, course_id: Number(params.id), current_module_index: nextIndex
-      }, { onConflict: 'user_id,course_id' });
-
-      addXp(user!.id, 150, 'Module Validé');
-
-      if (nextIndex >= modules.length) {
-          setView('finished');
-          triggerFinalCelebration();
+      if (uniqueMistakes.length === 0) {
+          // 100% réussite -> On saute la remédiation
+          launchFinalQuiz();
       } else {
-          setView('map');
+          // On lance la remédiation sur les points faibles
+          launchRemediation(uniqueMistakes);
       }
   };
 
-  // --- HANDLERS SPÉCIFIQUES ---
+  const launchRemediation = async (concepts: string[]) => {
+      setStep('analysis'); // Loader avec message "Analyse de vos lacunes..."
 
-  const handleQuizComplete = (score: number) => {
-      // Pour le diagnostic, on passe peu importe le score (c'est pour savoir)
-      // Pour la validation, il faut 70%
-      const current = modules[currentModIdx];
-      const total = current.quiz?.length || 1;
+      // Appel API pour le contenu de cours + flashcards
+      const res = await fetch(`${API_URL}/api/path/remediation`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course_text: courseText, weak_concepts: concepts, difficulty: 1 })
+      });
+      const data = await res.json();
+      setRemediationData(data);
+      setStep('remediation_learn');
+  };
 
-      if (current.type === 'diagnostic' || (score / total) >= 0.7) {
-          handleNextStep();
+  const handleRemediationQuizComplete = (answers: number[]) => {
+      // Pour simplifier, on considère qu'après la remédiation, on passe à la suite
+      // Dans une version V2, on pourrait boucler si encore des fautes
+      launchFinalQuiz();
+  };
+
+  const launchFinalQuiz = async () => {
+      setStep('analysis'); // Loader
+      const res = await fetch(`${API_URL}/api/path/validation`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course_text: courseText, concepts: [], difficulty: 3 }) // Difficulté max
+      });
+      const data = await res.json();
+      setFinalQuiz(data); // data.questions
+      setStep('final_quiz');
+  };
+
+  const handleFinalQuizComplete = () => {
+      launchPractice('easy');
+  };
+
+  const launchPractice = async (diff: 'easy' | 'hard') => {
+      setStep('analysis');
+      const res = await fetch(`${API_URL}/api/path/practice`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course_text: courseText, difficulty: diff })
+      });
+      const data = await res.json();
+      setCurrentExercise(data);
+      setStep(diff === 'easy' ? 'practice_easy' : 'practice_hard');
+  };
+
+  const handlePracticeComplete = () => {
+      if (step === 'practice_easy') {
+          if (confirm("Bravo ! Prêt pour le niveau Boss (Difficile) ?")) {
+              launchPractice('hard');
+          } else {
+              finishPath();
+          }
       } else {
-          alert("Score insuffisant pour valider ce module. Révisez encore !");
-          setView('map');
+          finishPath();
       }
   };
 
-  const handleFlashcardsDone = () => {
-      handleNextStep();
+  const finishPath = () => {
+      if (user) addXp(user.id, 500, "Mastery Path Completed");
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setStep('success');
   };
 
-  const handleLearningDone = () => {
-      // Après lecture, petit quiz de vérif s'il existe
-      if (modules[currentModIdx].quiz && modules[currentModIdx].quiz.length > 0) {
-          setView('quiz');
-      } else {
-          handleNextStep();
-      }
-  };
+  // --- RENDU ---
 
-  const handlePracticeDone = () => {
-      handleNextStep();
-  };
-
-  const triggerFinalCelebration = () => {
-      const duration = 3000;
-      const end = Date.now() + duration;
-      (function frame() {
-        confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
-        confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
-        if (Date.now() < end) requestAnimationFrame(frame);
-      }());
-  };
-
-  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin"/></div>;
-
-  const current = modules[currentModIdx];
-
-  // --- VUES ---
-
-  if (view === 'finished') {
+  if (step === 'loading' || step === 'analysis') {
       return (
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 text-center text-white animate-in zoom-in">
-              <div className="max-w-lg">
-                  <Award size={120} className="text-yellow-400 mx-auto mb-6 animate-bounce" />
-                  <h1 className="text-5xl font-black mb-6 text-yellow-400">LÉGENDAIRE !</h1>
-                  <p className="text-xl text-slate-300 mb-10">Vous maîtrisez ce cours à la perfection.</p>
-                  <button onClick={() => router.push('/workspace')} className="btn-b-primary bg-white text-slate-900 w-full">Retour au QG</button>
-              </div>
+          <div className="flex h-screen items-center justify-center bg-white flex-col gap-4">
+              <Loader2 className="animate-spin h-12 w-12 text-blue-600" />
+              <p className="text-slate-500 font-medium animate-pulse">
+                  {step === 'loading' ? 'Préparation du diagnostic...' : 'L\'IA analyse vos résultats et adapte le parcours...'}
+              </p>
           </div>
       );
   }
 
-  if (view === 'map') {
-      return (
-          <div className="pb-20 pt-10 px-4 max-w-2xl mx-auto">
-              <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-8 hover:text-slate-900"><ArrowLeft size={18}/> Retour</button>
-              <div className="text-center mb-16">
-                  <h1 className="text-4xl font-black text-slate-900 mb-2">Parcours de Maîtrise</h1>
-                  <p className="text-slate-500">Méthode Studia • {modules.length} Étapes</p>
-              </div>
-              <JourneyMap modules={modules} onModuleClick={startModule} />
-          </div>
-      );
-  }
+  return (
+    <div className="min-h-screen bg-slate-50 pb-20">
 
-  if (view === 'quiz') {
-      return (
-          <div className="max-w-3xl mx-auto py-12 px-6 animate-in slide-in-from-right-8">
-              <div className="mb-8 text-center">
-                  <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold uppercase mb-4"><Brain size={12}/> Quiz</div>
-                  <h2 className="text-3xl font-black text-slate-900">{current.title}</h2>
-              </div>
-              <BrilliantQuiz
-                  questions={current.quiz || []}
-                  onComplete={handleQuizComplete}
-                  onXpGain={(xp) => addXp(user!.id, xp, "Quiz")}
-              />
-          </div>
-      );
-  }
+        {/* Header commun */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 shadow-sm flex justify-between items-center">
+            <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold text-sm">
+                <ArrowLeft size={16}/> Quitter
+            </button>
+            <span className="text-xs font-black uppercase tracking-widest text-blue-600">
+                {step.replace('_', ' ')}
+            </span>
+        </div>
 
-  if (view === 'flashcards') {
-      return (
-          <div className="max-w-3xl mx-auto py-12 px-6 animate-in slide-in-from-right-8">
-              <div className="mb-8 text-center">
-                  <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-600 px-4 py-1 rounded-full text-xs font-bold uppercase mb-4"><Layers size={12}/> Flashcards</div>
-                  <h2 className="text-3xl font-black text-slate-900">{current.title}</h2>
-              </div>
-              <FlashcardViewer flashcards={current.flashcards || []} />
-              <div className="text-center mt-12">
-                  <button onClick={handleFlashcardsDone} className="btn-b-primary px-12">J'ai fini de réviser</button>
-              </div>
-          </div>
-      );
-  }
+        <div className="max-w-4xl mx-auto px-4 py-8">
 
-  if (view === 'learning') {
-      return (
-          <div className="max-w-3xl mx-auto py-12 px-6 pb-32 animate-in slide-in-from-right-8">
-              <div className="flex items-center gap-3 mb-8 text-sm font-bold text-slate-400 uppercase tracking-wider">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg">Théorie</span>
-                  <span>{current.title}</span>
-              </div>
-              <article className="prose prose-slate prose-lg max-w-none mb-16">
-                  <ReactMarkdown>{current.content || "Contenu vide"}</ReactMarkdown>
-              </article>
-              <button onClick={handleLearningDone} className="btn-b-primary w-full py-4 text-lg shadow-xl">
-                  Passer au test <ChevronRight />
-              </button>
-          </div>
-      );
-  }
+            {/* 1. DIAGNOSTIC */}
+            {step === 'diagnostic' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4">
+                    <div className="text-center mb-10">
+                        <h1 className="text-3xl font-black text-slate-900 mb-2">Évaluation Initiale</h1>
+                        <p className="text-slate-500">Voyons ce que vous savez déjà pour personnaliser la suite.</p>
+                    </div>
+                    <QuizDisplay quiz={{questions: diagnosticQuiz.questions}} onComplete={handleDiagnosticComplete} />
+                </div>
+            )}
 
-  if (view === 'practice') {
-      return (
-          <div className="max-w-3xl mx-auto py-12 px-6 pb-32 animate-in slide-in-from-right-8">
-              <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 shadow-sm mb-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-3"><PenTool className="text-purple-600"/> Examen Blanc (DS)</h2>
-                  <p className="text-lg text-slate-700 font-medium leading-relaxed mb-6">{current.practice?.instruction}</p>
-                  {!showSolution ? (
-                      <div className="space-y-4">
-                          <textarea className="w-full h-64 p-4 rounded-xl bg-slate-50 border-2 border-slate-200 focus:border-purple-500 outline-none" placeholder="Rédigez votre réponse complète ici..." value={practiceInput} onChange={(e) => setPracticeInput(e.target.value)}/>
-                          <button onClick={() => setShowSolution(true)} disabled={practiceInput.length < 20} className="btn-b-primary w-full disabled:opacity-50">Voir la correction type</button>
-                      </div>
-                  ) : (
-                      <div className="animate-in fade-in">
-                          <div className="bg-green-50 border-l-4 border-green-500 p-6 rounded-r-xl mb-8">
-                              <h3 className="font-bold text-green-800 mb-3">Points attendus dans la copie :</h3>
-                              <ul className="list-disc list-inside space-y-2 text-green-900">
-                                  {current.practice?.solution_key_points?.map((pt: string, i: number) => <li key={i}>{pt}</li>)}
-                              </ul>
-                          </div>
-                          <button onClick={handlePracticeDone} className="btn-b-primary bg-green-600 border-green-800 w-full">Je valide mon DS <CheckCircle className="ml-2"/></button>
-                      </div>
-                  )}
-              </div>
-          </div>
-      );
-  }
+            {/* 2. REMEDIATION (LEARN) */}
+            {step === 'remediation_learn' && remediationData && (
+                <div className="animate-in fade-in">
+                    <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-r-xl">
+                        <h3 className="font-bold text-red-800 mb-1">Lacunes détectées :</h3>
+                        <p className="text-red-700 text-sm">{weakConcepts.join(', ')}</p>
+                    </div>
+                    <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm">
+                        <article className="prose prose-slate max-w-none">
+                            <ReactMarkdown>{remediationData.text}</ReactMarkdown>
+                        </article>
+                    </div>
+                    <button onClick={() => setStep('remediation_flashcards')} className="btn-b-primary w-full mt-8 py-4 text-lg">
+                        Passer à la mémorisation
+                    </button>
+                </div>
+            )}
 
-  return null;
+            {/* 3. REMEDIATION (FLASHCARDS) */}
+            {step === 'remediation_flashcards' && remediationData && (
+                <div className="animate-in fade-in">
+                    <h2 className="text-center text-2xl font-bold mb-8">Ancrage des connaissances</h2>
+                    <FlashcardViewer flashcards={remediationData.flashcards} />
+                    <div className="text-center mt-12">
+                        <button onClick={async () => {
+                            setStep('analysis');
+                            // Génération du quiz de validation intermédiaire
+                            const res = await fetch(`${API_URL}/api/path/validation`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ course_text: courseText, concepts: weakConcepts, difficulty: 2 })
+                            });
+                            const data = await res.json();
+                            setValidationQuiz(data);
+                            setStep('remediation_quiz');
+                        }} className="btn-b-primary px-12">Test de vérification</button>
+                    </div>
+                </div>
+            )}
+
+            {/* 4. REMEDIATION (QUIZ VERIF) */}
+            {step === 'remediation_quiz' && validationQuiz && (
+                <div className="animate-in fade-in">
+                    <h2 className="text-center text-2xl font-bold mb-8">Avez-vous bien retenu ?</h2>
+                    <QuizDisplay quiz={{questions: validationQuiz.questions}} onComplete={handleRemediationQuizComplete} />
+                </div>
+            )}
+
+            {/* 5. FINAL QUIZ */}
+            {step === 'final_quiz' && finalQuiz && (
+                <div className="animate-in fade-in">
+                    <h2 className="text-center text-3xl font-black mb-8 text-purple-600">Le Boss Final</h2>
+                    <QuizDisplay quiz={{questions: finalQuiz.questions}} onComplete={handleFinalQuizComplete} />
+                </div>
+            )}
+
+            {/* 6. PRACTICE (EASY & HARD) */}
+            {(step === 'practice_easy' || step === 'practice_hard') && currentExercise && (
+                <PracticeInterface
+                    exercise={currentExercise}
+                    courseText={courseText}
+                    onComplete={handlePracticeComplete}
+                />
+            )}
+
+            {/* 7. SUCCESS */}
+            {step === 'success' && (
+                <div className="text-center py-20 animate-in zoom-in">
+                    <div className="w-32 h-32 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
+                        <Trophy size={64} className="text-slate-900"/>
+                    </div>
+                    <h1 className="text-5xl font-black text-slate-900 mb-6">MAÎTRISE TOTALE !</h1>
+                    <p className="text-xl text-slate-500 mb-12">Vous avez transformé vos lacunes en force.</p>
+                    <button onClick={() => router.push('/workspace/courses')} className="btn-b-primary px-12 py-4 text-lg">Retour</button>
+                </div>
+            )}
+
+        </div>
+    </div>
+  );
 }
