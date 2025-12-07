@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Bot, User, CheckCircle, XCircle, HelpCircle, ArrowRight } from 'lucide-react';
+import { Send, Bot, CheckCircle, XCircle, HelpCircle, ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface PracticeInterfaceProps {
@@ -65,10 +65,10 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
   };
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-140px)]">
+    <div className="flex flex-col md:flex-row gap-6 min-h-[600px]">
 
         {/* Zone Exercice (Gauche) */}
-        <div className={`flex-1 bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden flex flex-col transition-all duration-500 ${chatOpen ? 'w-1/2' : 'w-full'}`}>
+        <div className={`flex-1 bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden flex flex-col transition-all duration-500 ${chatOpen ? 'md:w-1/2' : 'w-full'}`}>
             <div className="p-8 border-b border-slate-100 bg-slate-50/50">
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">
                     <div className={`w-3 h-3 rounded-full ${exercise.difficulty === 'hard' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
@@ -81,7 +81,7 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
             <div className="flex-1 p-8 overflow-y-auto">
                 {status === 'typing' && (
                     <textarea
-                        className="w-full h-full resize-none outline-none text-lg text-slate-700 placeholder:text-slate-300"
+                        className="w-full h-64 resize-none outline-none text-lg text-slate-700 placeholder:text-slate-300 bg-transparent"
                         placeholder="Votre réponse ici..."
                         value={answer}
                         onChange={(e) => setAnswer(e.target.value)}
@@ -90,7 +90,7 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
                 )}
 
                 {status === 'evaluating' && (
-                    <div className="h-full flex items-center justify-center flex-col gap-4 animate-pulse">
+                    <div className="h-full flex items-center justify-center flex-col gap-4 py-20 animate-pulse">
                         <Bot size={48} className="text-slate-300" />
                         <p className="text-slate-400 font-bold">Correction IA en cours...</p>
                     </div>
@@ -110,22 +110,24 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
 
                         <div className="bg-slate-50 p-6 rounded-2xl">
                             <h3 className="font-bold text-slate-900 mb-3">Correction Type :</h3>
-                            <ReactMarkdown className="prose prose-sm max-w-none">{evaluation.correction}</ReactMarkdown>
+                            <div className="prose prose-sm max-w-none">
+                                <ReactMarkdown>{evaluation.correction}</ReactMarkdown>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-white">
-                <button onClick={() => setChatOpen(!chatOpen)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors">
-                    <HelpCircle size={20} /> {chatOpen ? 'Fermer le tuteur' : 'Demander de l\'aide'}
+            <div className="p-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
+                <button onClick={() => setChatOpen(!chatOpen)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors text-sm">
+                    <HelpCircle size={18} /> {chatOpen ? 'Fermer le tuteur' : 'Demander de l\'aide'}
                 </button>
 
                 {status === 'typing' && (
-                    <button onClick={handleSubmit} className="btn-b-primary px-8">Soumettre</button>
+                    <button onClick={handleSubmit} className="btn-b-primary w-full sm:w-auto px-8">Soumettre</button>
                 )}
                 {status === 'feedback' && (
-                    <button onClick={onComplete} className="btn-b-primary px-8 flex items-center gap-2">
+                    <button onClick={onComplete} className="btn-b-primary w-full sm:w-auto px-8 flex items-center justify-center gap-2">
                         Continuer <ArrowRight size={18}/>
                     </button>
                 )}
@@ -134,7 +136,7 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
 
         {/* Zone Chat Tuteur (Droite - Coulissante) */}
         {chatOpen && (
-            <div className="w-[400px] bg-slate-900 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-right">
+            <div className="w-full md:w-[400px] bg-slate-900 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-right h-[500px] md:h-auto">
                 <div className="p-6 bg-slate-800 border-b border-slate-700 flex items-center gap-3">
                     <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white"><Bot size={20}/></div>
                     <div>
@@ -151,13 +153,13 @@ export default function PracticeInterface({ exercise, courseText, onComplete }: 
                             </div>
                         </div>
                     ))}
-                    {chatLoading && <div className="text-slate-500 text-xs animate-pulse">L'IA écrit...</div>}
+                    {chatLoading && <div className="text-slate-500 text-xs animate-pulse pl-2">L'IA écrit...</div>}
                 </div>
 
                 <div className="p-4 bg-slate-800">
                     <form onSubmit={(e) => { e.preventDefault(); handleChatSend(); }} className="relative">
                         <input
-                            className="w-full bg-slate-900 text-white rounded-xl py-3 pl-4 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full bg-slate-900 text-white rounded-xl py-3 pl-4 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-500 border border-slate-700"
                             placeholder="Une question ?"
                             value={chatInput}
                             onChange={e => setChatInput(e.target.value)}
