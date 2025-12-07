@@ -73,21 +73,22 @@ def generate_diagnostic_quiz(course_text: str) -> dict:
 
 
 def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
-    """ÉTAPE 2 : Contenu de rattrapage."""
+    """ÉTAPE 2 : Contenu de rattrapage (Version Robustifiée)."""
     print(f"💊 Génération Remédiation pour : {weak_concepts}")
 
-    # On limite la taille du texte pour éviter les erreurs de tokens
+    # On limite le texte pour éviter le dépassement de tokens
     safe_text = course_text[:15000]
 
+    # On assouplit le prompt pour guider l'IA
     prompt = f"""L'élève a échoué sur ces concepts : {', '.join(weak_concepts)}.
-    Crée un module de rattrapage structuré.
+    Ton but : Créer un cours de rattrapage.
 
-    RÈGLES :
-    1. Le champ 'text' doit être un cours Markdown clair.
-    2. Le champ 'flashcards' doit contenir au moins 3 cartes.
-    3. Chaque flashcard doit avoir un 'front' et un 'back'.
+    Génère un objet JSON avec deux champs :
+    1. 'text' : Un cours clair en Markdown expliquant ces concepts.
+    2. 'flashcards' : Une liste d'au moins 3 objets {{ "front": "Question", "back": "Réponse" }}.
     """
 
+    # On garde le schéma mais on va essayer de parser manuellement si Pydantic échoue
     class RemediationSchema(BaseModel):
         text: str = Field(description="Le cours de rattrapage en Markdown.")
         flashcards: List[dict] = Field(description="Liste de {front: str, back: str}")
@@ -104,22 +105,40 @@ def generate_remediation_content(course_text: str, weak_concepts: List[str], dif
 
         data = completion.choices[0].message.parsed.model_dump()
 
-        # Sécurité : Si la liste est vide, on en crée une par défaut
-        if not data.get("flashcards"):
-            data["flashcards"] = [
-                {"front": "Concept clé manquant", "back": "Une erreur est survenue lors de la génération."}
-            ]
+        # Vérification finale des données
+        if not data.get("flashcards") or len(data["flashcards"]) == 0:
+            # Si pas de flashcards, on en génère une générique pour ne pas planter
+            data["flashcards"] = [{"front": "Révision", "back": "Relisez le cours ci-dessus."}]
 
         return {"summary": data["text"], "flashcards": data["flashcards"]}
 
     except Exception as e:
-        print(f"❌ Erreur Remediation: {e}")
-        # Fallback pour ne pas faire planter le frontend
-        return {
-            "summary": "# Erreur de génération\n\nDésolé, je n'ai pas pu générer le cours de rattrapage. Veuillez réessayer.",
-            "flashcards": [{"front": "Erreur", "back": "Veuillez réessayer."}]
-        }
+        print(f"❌ Erreur Pydantic Remediation: {e}")
 
+        # TENTATIVE DE RECUPERATION MANUELLE (Si le parseur strict échoue)
+        try:
+            # On refait un appel simple sans contrainte Pydantic stricte
+            fallback_completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": prompt + "\nRéponds uniquement en JSON valide."},
+                    {"role": "user", "content": safe_text}
+                ],
+                response_format={"type": "json_object"}
+            )
+            raw_json = json.loads(fallback_completion.choices[0].message.content)
+
+            return {
+                "summary": raw_json.get("text", "Erreur de génération du texte."),
+                "flashcards": raw_json.get("flashcards",
+                                           [{"front": "Erreur", "back": "Impossible de générer les cartes."}])
+            }
+        except Exception as e2:
+            print(f"❌ Erreur Totale Remediation: {e2}")
+            return {
+                "summary": "# Oups !\n\nL'IA n'a pas réussi à générer le cours de rattrapage. Essayez de relancer.",
+                "flashcards": [{"front": "Erreur Technique", "back": "Veuillez réessayer plus tard."}]
+            }
 
 def generate_validation_quiz(course_text: str, concepts: List[str], difficulty: int) -> dict:
     """ÉTAPE 3 : Quiz de validation."""
