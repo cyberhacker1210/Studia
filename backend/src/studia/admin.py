@@ -8,10 +8,22 @@ from .database import supabase
 
 router = APIRouter()
 
-# ✅ SÉCURITÉ : Lecture depuis les variables d'environnement
-# Exemple de valeur dans Render : "moi@gmail.com,admin@studia.com"
-admin_env = os.getenv("ADMIN_EMAILS", "")
-ADMIN_EMAILS = [email.strip() for email in admin_env.split(",") if email.strip()]
+# --- DEBUG & CHARGEMENT ROBUSTE ---
+# 1. On cherche avec "S" et sans "S"
+raw_env = os.getenv("ADMIN_EMAILS") or os.getenv("ADMIN_EMAIL") or ""
+
+# 2. On nettoie (enlève les guillemets si l'utilisateur en a mis dans Render)
+raw_env = raw_env.replace('"', '').replace("'", "")
+
+# 3. On transforme en liste
+ADMIN_EMAILS = [email.strip().lower() for email in raw_env.split(",") if email.strip()]
+
+# 4. ON AFFICHE CE QUE LE SERVEUR VOIT (Regarde tes logs après déploiement)
+print("=" * 30)
+print(f"🔍 DEBUG ANALYTICS CONFIG")
+print(f"➡️  Valeur brute reçue : '{raw_env}'")
+print(f"➡️  Liste finale Admins : {ADMIN_EMAILS}")
+print("=" * 30)
 
 
 class AnalyticsEvent(BaseModel):
@@ -40,13 +52,14 @@ async def track_event(event: AnalyticsEvent):
 
 @router.get("/dashboard")
 async def get_admin_stats(user_email: Optional[str] = Header(None)):
-    # --- DEBUG LOG ---
-    print(f"👤 Tentative accès Admin par : {user_email}")
-    print(f"📋 Admins autorisés : {ADMIN_EMAILS}")
+    # Normalisation
+    clean_email = user_email.strip().lower() if user_email else ""
 
-    # --- SÉCURITÉ ---
-    if not user_email or user_email not in ADMIN_EMAILS:
-        print("⛔️ Accès refusé : Email non reconnu")
+    print(f"👤 Tentative: '{clean_email}'")
+
+    # Sécurité
+    if clean_email not in ADMIN_EMAILS:
+        print(f"⛔️ REJETÉ. L'email '{clean_email}' n'est pas dans {ADMIN_EMAILS}")
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     if not supabase:
@@ -56,11 +69,9 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
         now = datetime.now(timezone.utc)
         seven_days_ago = (now - timedelta(days=7)).isoformat()
 
-        # 1. Total Utilisateurs
         users_res = supabase.table('users').select('id', count='exact').execute()
         total_users = users_res.count if users_res.count else 0
 
-        # 2. Logs récents
         logs_res = supabase.table('analytics_events') \
             .select('*') \
             .gte('created_at', seven_days_ago) \
@@ -78,7 +89,6 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
         for log in logs:
             try:
                 log_date = datetime.fromisoformat(log['created_at'].replace('Z', '+00:00'))
-
                 active_users_week.add(log['user_id'])
 
                 if log_date >= (now - timedelta(days=1)):
@@ -98,23 +108,4 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
 
         retention_d1 = "N/A"
         if len(active_users_week) > 0:
-            retention_score = (len(active_users_day) / len(active_users_week)) * 100
-            retention_d1 = f"{round(retention_score)}%"
-
-        top_feature = max(feature_counts, key=feature_counts.get) if feature_counts else "Aucune"
-        avg_time = round(total_duration / session_count) if session_count > 0 else 0
-        avg_time_str = f"{avg_time // 60}m {avg_time % 60}s"
-
-        return {
-            "total_users": total_users,
-            "dau": len(active_users_day),
-            "wau": len(active_users_week),
-            "avg_session_time": avg_time_str,
-            "top_feature": top_feature,
-            "retention_j1": retention_d1,
-            "retention_j7": "Calcul..."
-        }
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+            retention_score =
