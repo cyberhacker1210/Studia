@@ -22,11 +22,13 @@ from .learning_path import (
     generate_practice_exercise,
     evaluate_student_answer,
     chat_with_tutor,
-    generate_daily_plan, # ✅ Maintenant elle existe !
-    generate_mastery_path # Stub de sécurité
+    generate_daily_plan,
+    generate_mastery_path
 )
+# ✅ IMPORT DU ROUTEUR ADMIN
+from .admin import router as admin_router
 
-app = FastAPI(title="Studia API", version="2.4.1")
+app = FastAPI(title="Studia API", version="2.6.0")
 
 # --- CONFIGURATION ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -57,7 +59,6 @@ class FlashcardGenerateRequest(BaseModel): course_text: str; num_cards: int = 10
 class Flashcard(BaseModel): front: str; back: str; category: Optional[str] = "Général"; difficulty: Optional[str] = "medium"
 class FlashcardResponse(BaseModel): id: str; flashcards: List[Flashcard]; createdAt: str
 
-# Parcours Adaptatif
 class CourseRequest(BaseModel): course_text: str
 class RemediationRequest(BaseModel): course_text: str; weak_concepts: List[str]; difficulty: int
 class ValidationRequest(BaseModel): course_text: str; concepts: List[str]; difficulty: int
@@ -68,12 +69,12 @@ class MotivationRequest(BaseModel): goal: str; deadline: str; current_xp: int = 
 class MotivationResponse(BaseModel): daily_message: str; quote: str; micro_tasks: List[dict]
 class ChatRequest(BaseModel): message: str; history: List[dict]; course_context: str
 class ChatResponse(BaseModel): reply: str
-class MasteryRequest(BaseModel): course_text: str # Legacy stub support
+class MasteryRequest(BaseModel): course_text: str
 
 # --- ENDPOINTS ---
 
 @app.get("/")
-def root(): return {"status": "online", "version": "2.4.1"}
+def root(): return {"status": "online", "version": "2.6.0"}
 
 # 1. EXTRACTION
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
@@ -159,12 +160,14 @@ async def chat_tutor_endpoint(request: ChatRequest):
         return ChatResponse(reply=reply)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# Legacy stub
 @app.post("/api/path/generate")
 async def path_generate_legacy(request: MasteryRequest):
     return generate_mastery_path(request.course_text)
 
-# 6. WEBHOOKS
+# ✅ 6. ANALYTICS & ADMIN
+app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
+
+# 7. WEBHOOKS
 @app.post("/api/webhook/lemon")
 async def lemon_webhook(request: Request):
     if not LEMON_WEBHOOK_SECRET: return {"error": "No secret"}

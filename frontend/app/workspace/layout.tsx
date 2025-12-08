@@ -7,10 +7,14 @@ import { Home, Plus, MessageSquare, Library, BarChart3, Brain, Layers } from 'lu
 import EnergyBadge from '@/components/workspace/EnergyBadge';
 import ReferralHandler from '@/components/workspace/ReferralHandler';
 import { useSupabaseUser } from '@/lib/useSupabaseUser';
+import { useAnalytics } from '@/hooks/useAnalytics'; // ✅ Import du hook
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  // Initialisation des services
   useSupabaseUser();
+  useAnalytics(); // ✅ Activation du tracking automatique
 
   const NavItem = ({ href, icon: Icon, label }: any) => {
     const isActive = href === '/workspace' ? pathname === href : pathname?.startsWith(href);
@@ -36,7 +40,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     <div className="h-screen w-full flex bg-slate-50 font-sans overflow-hidden">
       <ReferralHandler />
 
-      {/* SIDEBAR DESKTOP (Inchangée) */}
+      {/* SIDEBAR DESKTOP */}
       <aside className="w-72 hidden md:flex flex-col border-r-2 border-slate-100 h-full bg-white flex-shrink-0">
         <div className="px-6 py-6 mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2 font-extrabold text-xl text-slate-900">
