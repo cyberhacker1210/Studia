@@ -10,9 +10,11 @@ import uuid
 import os
 import hashlib
 import hmac
-from supabase import create_client, Client
 
 # --- IMPORTS LOCAUX ---
+# ✅ IMPORT CENTRALISÉ
+from .database import supabase
+
 from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
 from .learning_path import (
@@ -25,18 +27,9 @@ from .learning_path import (
     generate_daily_plan,
     generate_mastery_path
 )
-# ✅ IMPORT DU ROUTEUR ADMIN
 from .admin import router as admin_router
 
-app = FastAPI(title="Studia API", version="2.6.0")
-
-# --- CONFIGURATION ---
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-else:
-    print("⚠️ Warning: Supabase keys not found.")
+app = FastAPI(title="Studia API", version="2.6.1")
 
 LEMON_WEBHOOK_SECRET = os.getenv("LEMON_WEBHOOK_SECRET")
 
@@ -74,7 +67,7 @@ class MasteryRequest(BaseModel): course_text: str
 # --- ENDPOINTS ---
 
 @app.get("/")
-def root(): return {"status": "online", "version": "2.6.0"}
+def root(): return {"status": "online", "version": "2.6.1"}
 
 # 1. EXTRACTION
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
@@ -164,7 +157,7 @@ async def chat_tutor_endpoint(request: ChatRequest):
 async def path_generate_legacy(request: MasteryRequest):
     return generate_mastery_path(request.course_text)
 
-# ✅ 6. ANALYTICS & ADMIN
+# 6. ANALYTICS & ADMIN
 app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
 
 # 7. WEBHOOKS
