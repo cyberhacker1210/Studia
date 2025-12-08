@@ -4,16 +4,14 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 import traceback
 import os
-# ✅ IMPORT CENTRALISÉ
 from .database import supabase
 
 router = APIRouter()
 
-# 👇 METS TON EMAIL EXACT ICI (gardes les guillemets)
-ADMIN_EMAILS = [
-    "cyberhacker1210@gmail.com",  # Remplace par ton VRAI email
-    "ton_autre_email@test.com"  # Tu peux en mettre plusieurs
-]
+# ✅ SÉCURITÉ : Lecture depuis les variables d'environnement
+# Exemple de valeur dans Render : "moi@gmail.com,admin@studia.com"
+admin_env = os.getenv("ADMIN_EMAILS", "")
+ADMIN_EMAILS = [email.strip() for email in admin_env.split(",") if email.strip()]
 
 
 class AnalyticsEvent(BaseModel):
@@ -44,6 +42,7 @@ async def track_event(event: AnalyticsEvent):
 async def get_admin_stats(user_email: Optional[str] = Header(None)):
     # --- DEBUG LOG ---
     print(f"👤 Tentative accès Admin par : {user_email}")
+    print(f"📋 Admins autorisés : {ADMIN_EMAILS}")
 
     # --- SÉCURITÉ ---
     if not user_email or user_email not in ADMIN_EMAILS:
