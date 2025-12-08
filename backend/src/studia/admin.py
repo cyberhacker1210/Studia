@@ -3,12 +3,17 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 import traceback
+import os
 # ✅ IMPORT CENTRALISÉ
 from .database import supabase
 
 router = APIRouter()
 
-ADMIN_EMAILS = ["ton_email@gmail.com", "admin@studia.com"]
+# 👇 METS TON EMAIL EXACT ICI (gardes les guillemets)
+ADMIN_EMAILS = [
+    "cyberhacker1210@gmail.com",  # Remplace par ton VRAI email
+    "ton_autre_email@test.com"  # Tu peux en mettre plusieurs
+]
 
 
 class AnalyticsEvent(BaseModel):
@@ -37,12 +42,19 @@ async def track_event(event: AnalyticsEvent):
 
 @router.get("/dashboard")
 async def get_admin_stats(user_email: Optional[str] = Header(None)):
+    # --- DEBUG LOG ---
+    print(f"👤 Tentative accès Admin par : {user_email}")
+
+    # --- SÉCURITÉ ---
+    if not user_email or user_email not in ADMIN_EMAILS:
+        print("⛔️ Accès refusé : Email non reconnu")
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
 
     try:
         now = datetime.now(timezone.utc)
-        one_day_ago = (now - timedelta(days=1)).isoformat()
         seven_days_ago = (now - timedelta(days=7)).isoformat()
 
         # 1. Total Utilisateurs
