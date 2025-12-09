@@ -8,16 +8,9 @@ from .database import supabase
 
 router = APIRouter()
 
-# --- DEBUG & CHARGEMENT ROBUSTE ---
-raw_env = os.getenv("ADMIN_EMAILS") or os.getenv("ADMIN_EMAIL") or ""
-raw_env = raw_env.replace('"', '').replace("'", "")
-ADMIN_EMAILS = [email.strip().lower() for email in raw_env.split(",") if email.strip()]
-
-print("=" * 30)
-print(f"🔍 DEBUG ANALYTICS CONFIG")
-print(f"➡️  Valeur brute reçue : '{raw_env}'")
-print(f"➡️  Liste finale Admins : {ADMIN_EMAILS}")
-print("=" * 30)
+# ✅ SÉCURITÉ : Mot de passe simple
+# Défaut "studia123" si tu oublies de le mettre dans Render
+ADMIN_PASSWORD = os.getenv("ADMIN_SECRET", "studia123")
 
 
 class AnalyticsEvent(BaseModel):
@@ -28,9 +21,7 @@ class AnalyticsEvent(BaseModel):
 
 @router.post("/track")
 async def track_event(event: AnalyticsEvent):
-    if not supabase:
-        return {"status": "error", "detail": "Database not configured"}
-
+    if not supabase: return {"status": "error"}
     try:
         supabase.table('analytics_events').insert({
             "user_id": event.user_id,
@@ -39,20 +30,16 @@ async def track_event(event: AnalyticsEvent):
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
         return {"status": "ok"}
-    except Exception as e:
-        print(f"❌ Analytics Error: {e}")
-        return {"status": "error", "detail": str(e)}
+    except Exception:
+        return {"status": "error"}
 
 
 @router.get("/dashboard")
-async def get_admin_stats(user_email: Optional[str] = Header(None)):
-    clean_email = user_email.strip().lower() if user_email else ""
-
-    print(f"👤 Tentative: '{clean_email}'")
-
-    if clean_email not in ADMIN_EMAILS:
-        print(f"⛔️ REJETÉ. L'email '{clean_email}' n'est pas dans {ADMIN_EMAILS}")
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
+async def get_admin_stats(x_admin_password: Optional[str] = Header(None)):
+    # 🔒 VÉRIFICATION DU MOT DE PASSE
+    if x_admin_password != ADMIN_PASSWORD:
+        print(f"⛔️ Mot de passe incorrect : {x_admin_password}")
+        raise HTTPException(status_code=403, detail="Mot de passe incorrect")
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -82,7 +69,6 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
             try:
                 log_date = datetime.fromisoformat(log['created_at'].replace('Z', '+00:00'))
                 active_users_week.add(log['user_id'])
-
                 if log_date >= (now - timedelta(days=1)):
                     active_users_day.add(log['user_id'])
 
@@ -95,12 +81,11 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
                     if 0 < duration < 14400:
                         total_duration += duration
                         session_count += 1
-            except Exception:
+            except:
                 continue
 
         retention_d1 = "N/A"
         if len(active_users_week) > 0:
-            # ✅ CORRECTION DE LA SYNTAXE ICI (tout sur une ligne)
             retention_score = (len(active_users_day) / len(active_users_week)) * 100
             retention_d1 = f"{round(retention_score)}%"
 

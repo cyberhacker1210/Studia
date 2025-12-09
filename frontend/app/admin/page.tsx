@@ -1,52 +1,79 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { Loader2, Users, Activity, Clock, Star, TrendingUp, Calendar, Lock } from 'lucide-react';
+import { Loader2, Users, Activity, Clock, Star, TrendingUp, Calendar, Lock, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function AdminDashboard() {
-  const { user, isLoaded } = useUser();
+  const [password, setPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (user) {
-        fetchStats();
-    }
-  }, [user]);
-
-  const fetchStats = async () => {
+  const fetchStats = async (pwd: string) => {
+    setLoading(true);
+    setError('');
     try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analytics/dashboard`, {
-            headers: { 'user-email': user?.emailAddresses[0].emailAddress || '' }
+            headers: { 'x-admin-password': pwd }
         });
         if (res.ok) {
             const data = await res.json();
             setStats(data);
+            setIsAuthenticated(true);
+            localStorage.setItem('admin_pwd', pwd); // Sauvegarde locale pour le confort
         } else {
-            throw new Error("Accès refusé ou erreur serveur");
+            setError("Mot de passe incorrect");
         }
-    } catch (e: any) {
-        console.error(e);
-        setError(e.message);
+    } catch (e) {
+        setError("Erreur serveur");
     } finally {
         setLoading(false);
     }
   };
 
-  if (!isLoaded || loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin"/></div>;
+  useEffect(() => {
+      // Auto-login si déjà connecté
+      const savedPwd = localStorage.getItem('admin_pwd');
+      if (savedPwd) fetchStats(savedPwd);
+  }, []);
 
-  if (error) return (
-      <div className="h-screen flex flex-col items-center justify-center text-red-600 gap-4">
-          <Lock size={48} />
-          <h1 className="text-2xl font-bold">Accès Refusé</h1>
-          <p>{error}</p>
-      </div>
-  );
+  const handleLogin = (e: React.FormEvent) => {
+      e.preventDefault();
+      fetchStats(password);
+  };
 
-  // Données factices pour le graphique (à connecter avec de vraies données historiques si dispo)
+  // --- ECRAN DE LOGIN ---
+  if (!isAuthenticated) {
+      return (
+          <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+              <div className="bg-white p-8 rounded-[2rem] shadow-xl max-w-sm w-full text-center">
+                  <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <Lock size={32} />
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 mb-6">Accès Admin</h1>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                      <input
+                          type="password"
+                          placeholder="Mot de passe secret"
+                          className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-600 transition-colors font-bold"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button disabled={loading} className="btn-b-primary w-full py-3 justify-center">
+                          {loading ? <Loader2 className="animate-spin"/> : <span className="flex items-center gap-2">Entrer <ArrowRight size={16}/></span>}
+                      </button>
+                  </form>
+                  {error && <p className="text-red-500 font-bold mt-4 animate-pulse">{error}</p>}
+              </div>
+          </div>
+      );
+  }
+
+  // --- DASHBOARD ---
+  if (loading && !stats) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin"/></div>;
+
   const chartData = [
     { name: 'Lun', users: stats?.dau || 10 },
     { name: 'Mar', users: stats?.dau ? stats.dau + 5 : 15 },
@@ -59,9 +86,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
-        <h1 className="text-3xl font-black text-slate-900 mb-8">Tableau de Bord Admin</h1>
+        <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-black text-slate-900">Tableau de Bord</h1>
+            <button onClick={() => { setIsAuthenticated(false); localStorage.removeItem('admin_pwd'); }} className="text-sm font-bold text-slate-400 hover:text-red-500">Déconnexion</button>
+        </div>
 
-        {/* KPI CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
             <StatCard icon={Users} label="Total Utilisateurs" value={stats?.total_users} color="bg-blue-500" />
             <StatCard icon={Activity} label="Actifs (24h)" value={stats?.dau} color="bg-green-500" />
@@ -69,33 +98,23 @@ export default function AdminDashboard() {
             <StatCard icon={Clock} label="Temps Moyen" value={stats?.avg_session_time} color="bg-orange-500" />
         </div>
 
-        {/* SECOND ROW */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-
-            {/* Feature Card */}
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <Star className="text-yellow-500" /> Fonctionnalité Favorite
-                </h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Star className="text-yellow-500" /> Fonctionnalité Favorite</h3>
                 <div className="flex items-center justify-center h-32">
                     <span className="text-4xl font-black text-slate-900">{stats?.top_feature}</span>
                 </div>
             </div>
-
-            {/* Retention Card */}
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <TrendingUp className="text-red-500" /> Rétention J+1
-                </h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><TrendingUp className="text-red-500" /> Rétention J+1</h3>
                 <div className="flex items-center justify-center h-32">
                     <span className="text-4xl font-black text-slate-900">{stats?.retention_j1}</span>
                 </div>
             </div>
         </div>
 
-        {/* CHART */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 h-96">
-            <h3 className="text-lg font-bold mb-6">Activité Hebdomadaire (Simulation)</h3>
+            <h3 className="text-lg font-bold mb-6">Activité Hebdomadaire</h3>
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
