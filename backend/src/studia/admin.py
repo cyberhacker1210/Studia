@@ -9,16 +9,10 @@ from .database import supabase
 router = APIRouter()
 
 # --- DEBUG & CHARGEMENT ROBUSTE ---
-# 1. On cherche avec "S" et sans "S"
 raw_env = os.getenv("ADMIN_EMAILS") or os.getenv("ADMIN_EMAIL") or ""
-
-# 2. On nettoie (enlève les guillemets si l'utilisateur en a mis dans Render)
 raw_env = raw_env.replace('"', '').replace("'", "")
-
-# 3. On transforme en liste
 ADMIN_EMAILS = [email.strip().lower() for email in raw_env.split(",") if email.strip()]
 
-# 4. ON AFFICHE CE QUE LE SERVEUR VOIT (Regarde tes logs après déploiement)
 print("=" * 30)
 print(f"🔍 DEBUG ANALYTICS CONFIG")
 print(f"➡️  Valeur brute reçue : '{raw_env}'")
@@ -52,12 +46,10 @@ async def track_event(event: AnalyticsEvent):
 
 @router.get("/dashboard")
 async def get_admin_stats(user_email: Optional[str] = Header(None)):
-    # Normalisation
     clean_email = user_email.strip().lower() if user_email else ""
 
     print(f"👤 Tentative: '{clean_email}'")
 
-    # Sécurité
     if clean_email not in ADMIN_EMAILS:
         print(f"⛔️ REJETÉ. L'email '{clean_email}' n'est pas dans {ADMIN_EMAILS}")
         raise HTTPException(status_code=403, detail="Accès non autorisé")
@@ -108,4 +100,24 @@ async def get_admin_stats(user_email: Optional[str] = Header(None)):
 
         retention_d1 = "N/A"
         if len(active_users_week) > 0:
-            retention_score =
+            # ✅ CORRECTION DE LA SYNTAXE ICI (tout sur une ligne)
+            retention_score = (len(active_users_day) / len(active_users_week)) * 100
+            retention_d1 = f"{round(retention_score)}%"
+
+        top_feature = max(feature_counts, key=feature_counts.get) if feature_counts else "Aucune"
+        avg_time = round(total_duration / session_count) if session_count > 0 else 0
+        avg_time_str = f"{avg_time // 60}m {avg_time % 60}s"
+
+        return {
+            "total_users": total_users,
+            "dau": len(active_users_day),
+            "wau": len(active_users_week),
+            "avg_session_time": avg_time_str,
+            "top_feature": top_feature,
+            "retention_j1": retention_d1,
+            "retention_j7": "Calcul..."
+        }
+
+    except Exception as e:
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
