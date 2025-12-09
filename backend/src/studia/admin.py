@@ -8,9 +8,10 @@ from .database import supabase
 
 router = APIRouter()
 
-# ✅ SÉCURITÉ : Mot de passe simple
-# Défaut "studia123" si tu oublies de le mettre dans Render
-ADMIN_PASSWORD = os.getenv("ADMIN_SECRET", "studia123")
+# ✅ RÉCUPÉRATION DU MOT DE PASSE (Avec nettoyage)
+ADMIN_PASSWORD = os.getenv("ADMIN_SECRET", "studia123").strip()
+
+print(f"🔐 Admin Password Configured: {ADMIN_PASSWORD[:3]}***")
 
 
 class AnalyticsEvent(BaseModel):
@@ -36,10 +37,17 @@ async def track_event(event: AnalyticsEvent):
 
 @router.get("/dashboard")
 async def get_admin_stats(x_admin_password: Optional[str] = Header(None)):
-    # 🔒 VÉRIFICATION DU MOT DE PASSE
-    if x_admin_password != ADMIN_PASSWORD:
-        print(f"⛔️ Mot de passe incorrect : {x_admin_password}")
+    # ✅ DEBUG LOG POUR LA CONNEXION
+    print(f"🔒 Login attempt:")
+    print(f"   - Reçu: '{x_admin_password}'")
+    print(f"   - Attendu: '{ADMIN_PASSWORD}'")
+
+    # Vérification sécurisée
+    if not x_admin_password or x_admin_password.strip() != ADMIN_PASSWORD:
+        print("⛔️ Rejeté.")
         raise HTTPException(status_code=403, detail="Mot de passe incorrect")
+
+    print("✅ Accès autorisé.")
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")

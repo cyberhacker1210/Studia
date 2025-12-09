@@ -15,26 +15,32 @@ export default function AdminDashboard() {
     setLoading(true);
     setError('');
     try {
+        // ✅ FETCH PROPRE
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analytics/dashboard`, {
-            headers: { 'x-admin-password': pwd }
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-password': pwd.trim()
+            }
         });
+
         if (res.ok) {
             const data = await res.json();
             setStats(data);
             setIsAuthenticated(true);
-            localStorage.setItem('admin_pwd', pwd); // Sauvegarde locale pour le confort
+            localStorage.setItem('admin_pwd', pwd);
         } else {
             setError("Mot de passe incorrect");
+            localStorage.removeItem('admin_pwd');
         }
     } catch (e) {
-        setError("Erreur serveur");
+        setError("Erreur serveur (Vérifiez les logs Render)");
     } finally {
         setLoading(false);
     }
   };
 
   useEffect(() => {
-      // Auto-login si déjà connecté
       const savedPwd = localStorage.getItem('admin_pwd');
       if (savedPwd) fetchStats(savedPwd);
   }, []);
@@ -44,7 +50,6 @@ export default function AdminDashboard() {
       fetchStats(password);
   };
 
-  // --- ECRAN DE LOGIN ---
   if (!isAuthenticated) {
       return (
           <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
@@ -57,7 +62,7 @@ export default function AdminDashboard() {
                       <input
                           type="password"
                           placeholder="Mot de passe secret"
-                          className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-600 transition-colors font-bold"
+                          className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-600 transition-colors font-bold text-slate-900"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                       />
@@ -71,8 +76,7 @@ export default function AdminDashboard() {
       );
   }
 
-  // --- DASHBOARD ---
-  if (loading && !stats) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin"/></div>;
+  if (loading && !stats) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600 h-12 w-12"/></div>;
 
   const chartData = [
     { name: 'Lun', users: stats?.dau || 10 },
@@ -88,7 +92,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-slate-50 p-8">
         <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-black text-slate-900">Tableau de Bord</h1>
-            <button onClick={() => { setIsAuthenticated(false); localStorage.removeItem('admin_pwd'); }} className="text-sm font-bold text-slate-400 hover:text-red-500">Déconnexion</button>
+            <button onClick={() => { setIsAuthenticated(false); localStorage.removeItem('admin_pwd'); }} className="text-sm font-bold text-slate-400 hover:text-red-500 transition-colors">Déconnexion</button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
