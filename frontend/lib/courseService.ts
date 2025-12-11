@@ -6,35 +6,18 @@ export interface Course {
   title: string;
   description?: string;
   extracted_text: string;
+  // ✅ AJOUT DU CHAMP MANQUANT (indispensable pour l'erreur TypeScript)
+  subject: string;
   created_at: string;
-  exam_date?: string | null;
 }
 
-/**
- * Sauvegarde un nouveau cours dans Supabase
- * S'assure d'abord que l'utilisateur existe dans la table 'users'
- */
-export async function saveCourse(userId: string, extractedText: string, title: string) {
+// ✅ Signature mise à jour avec subject
+export async function saveCourse(userId: string, extractedText: string, title: string, subject: string = 'Général') {
   try {
-    // 1. Synchronisation de l'utilisateur (Création s'il n'existe pas)
-    // C'est crucial pour éviter l'erreur "foreign key constraint"
-    const { error: userError } = await supabase
-      .from('users')
-      .upsert(
-        {
-          id: userId,
-          // On peut ajouter d'autres champs par défaut ici si besoin
-          // xp: 0, level: 1... (mais Supabase a déjà des defaults)
-        },
-        { onConflict: 'id', ignoreDuplicates: true }
-      );
+    // 1. Synchronisation de l'utilisateur (Sécurité)
+    await supabase.from('users').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true });
 
-    if (userError) {
-      console.warn("⚠️ Warning: Impossible de synchroniser l'utilisateur", userError.message);
-      // On ne bloque pas le processus, on tente quand même de sauvegarder le cours
-    }
-
-    // 2. Sauvegarde du cours
+    // 2. Sauvegarde du cours avec la matière
     const { data, error } = await supabase
       .from('courses')
       .insert([
@@ -42,13 +25,14 @@ export async function saveCourse(userId: string, extractedText: string, title: s
           user_id: userId,
           title: title,
           extracted_text: extractedText,
+          subject: subject, // ✅ On sauvegarde la matière
         }
       ])
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Erreur Supabase (insert course):', error);
+      console.error('❌ Erreur Supabase:', error);
       throw new Error(error.message);
     }
 
