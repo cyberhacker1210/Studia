@@ -2,33 +2,81 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { getUserCourses, deleteCourse, Course } from '@/lib/courseService';
-import { BookOpen, Trash2, Calendar, Plus, ArrowRight } from 'lucide-react';
+import { getUserCourses, deleteCourse, updateCourse, Course } from '@/lib/courseService';
+import { BookOpen, Trash2, Calendar, Plus, ArrowRight, Edit2, Check, X, Filter } from 'lucide-react';
 import Link from 'next/link';
+
+const SUBJECTS = ["Tous", "Mathématiques", "Physique-Chimie", "SVT", "Histoire-Géo", "Philosophie", "SES", "Langues", "Autre"];
 
 export default function CoursesPage() {
   const { user } = useUser();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSubject, setSelectedSubject] = useState("Tous");
+
+  // États pour l'édition rapide
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   useEffect(() => {
     if (user) {
       getUserCourses(user.id).then(data => {
         setCourses(data);
+        setFilteredCourses(data);
         setLoading(false);
       });
     }
   }, [user]);
 
+  // Filtrage
+  useEffect(() => {
+    if (selectedSubject === "Tous") {
+      setFilteredCourses(courses);
+    } else {
+      setFilteredCourses(courses.filter(c => c.subject === selectedSubject));
+    }
+  }, [selectedSubject, courses]);
+
   const handleDelete = async (e: any, courseId: number) => {
     e.preventDefault();
-    if (!confirm('Supprimer ce cours ?')) return;
+    e.stopPropagation();
+    if (!confirm('Supprimer définitivement ce cours ?')) return;
     if (!user) return;
     await deleteCourse(courseId, user.id);
-    setCourses(courses.filter(c => c.id !== courseId));
+    const newCourses = courses.filter(c => c.id !== courseId);
+    setCourses(newCourses);
   };
 
-  // Palette de dégradés pour les cartes
+  const startEdit = (e: any, course: Course) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingId(course.id);
+      setEditTitle(course.title);
+  };
+
+  const saveEdit = async (e: any) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!user || !editingId) return;
+
+      try {
+          await updateCourse(editingId, user.id, { title: editTitle });
+          const newCourses = courses.map(c => c.id === editingId ? { ...c, title: editTitle } : c);
+          setCourses(newCourses);
+          setEditingId(null);
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  const cancelEdit = (e: any) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingId(null);
+  };
+
+  // Palette de dégradés
   const gradients = [
     "from-blue-500 to-indigo-600",
     "from-purple-500 to-pink-600",
@@ -37,74 +85,133 @@ export default function CoursesPage() {
   ];
 
   return (
-    <div className="pb-10">
+    <div className="pb-20 px-4 max-w-7xl mx-auto">
 
-      <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900">Bibliothèque</h1>
-          <Link href="/workspace/capture" className="btn-b-secondary text-xs py-2 px-4 hidden md:flex">
-              <Plus size={16} /> Nouveau
+      {/* EN-TÊTE */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900">Bibliothèque</h1>
+            <p className="text-slate-500 font-medium">{courses.length} cours enregistrés</p>
+          </div>
+          <Link href="/workspace/capture" className="btn-b-primary py-3 px-6 shadow-lg hover:scale-105 transition-transform">
+              <Plus size={20} /> Nouveau Cours
           </Link>
       </div>
 
-      {loading ? (
-          <div className="grid md:grid-cols-3 gap-4">
-              {[1,2,3].map(i => <div key={i} className="h-64 bg-white rounded-[2rem] animate-pulse"></div>)}
+      {/* FILTRES */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-hide">
+          <div className="flex items-center gap-2 text-slate-400 mr-2">
+              <Filter size={16} /> <span className="text-xs font-bold uppercase">Filtres</span>
           </div>
-      ) : courses.length === 0 ? (
+          {SUBJECTS.map(sub => (
+              <button
+                key={sub}
+                onClick={() => setSelectedSubject(sub)}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                    selectedSubject === sub 
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                }`}
+              >
+                  {sub}
+              </button>
+          ))}
+      </div>
+
+      {/* LISTE DES COURS */}
+      {loading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1,2,3].map(i => <div key={i} className="h-64 bg-slate-100 rounded-[2rem] animate-pulse"></div>)}
+          </div>
+      ) : filteredCourses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-white border-2 border-dashed border-slate-200 rounded-[2rem] text-center p-6">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                  <BookOpen size={28} className="text-slate-300" />
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                  <BookOpen size={32} className="text-slate-300" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">C'est vide ici.</h3>
-              <p className="text-slate-500 text-sm mb-6">Capturez votre premier cours pour commencer.</p>
-              <Link href="/workspace/capture" className="btn-b-primary text-sm py-3">
-                  Créer un cours
-              </Link>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucun cours trouvé.</h3>
+              <p className="text-slate-500 mb-8 max-w-xs mx-auto">
+                  {selectedSubject === "Tous" ? "Commencez par ajouter votre premier cours." : `Aucun cours de ${selectedSubject} pour l'instant.`}
+              </p>
+              {selectedSubject === "Tous" && (
+                  <Link href="/workspace/capture" className="btn-b-primary text-sm py-3 px-8">
+                      Créer un cours
+                  </Link>
+              )}
           </div>
       ) : (
-          /* CONTAINER SWIPE MOBILE (Inspiré Netflix/Spotify) */
-          <div className="
-            flex gap-4 overflow-x-auto snap-x snap-mandatory
-            pb-8 -mx-4 px-4
-            md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:p-0 md:mx-0
-            scrollbar-hide
-          ">
-              {courses.map((course, index) => {
-                  // Choix aléatoire (mais stable) du dégradé
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
+              {filteredCourses.map((course, index) => {
                   const gradient = gradients[index % gradients.length];
 
                   return (
                     <Link
                         href={`/workspace/courses/${course.id}`}
                         key={course.id}
-                        className="relative group flex-shrink-0 w-[85vw] md:w-auto snap-center"
+                        className="group relative block h-full"
                     >
-                        {/* CARTE STYLE "COVER ART" */}
-                        <div className={`h-72 md:h-80 rounded-[2rem] p-6 flex flex-col justify-between text-white shadow-lg bg-gradient-to-br ${gradient} transition-transform active:scale-95 md:hover:-translate-y-2`}>
+                        <div className={`h-full min-h-[280px] rounded-[2rem] p-6 flex flex-col justify-between text-white shadow-lg bg-gradient-to-br ${gradient} transition-transform active:scale-95 hover:-translate-y-2 relative overflow-hidden`}>
 
-                            {/* Top: Date + Delete */}
-                            <div className="flex justify-between items-start">
-                                <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">
-                                    {new Date(course.created_at).toLocaleDateString()}
+                            {/* Texture de fond */}
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
+
+                            {/* Top: Badges & Actions */}
+                            <div className="relative z-10 flex justify-between items-start">
+                                <div className="flex flex-col gap-2">
+                                    <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit border border-white/10">
+                                        {course.subject || 'Général'}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-xs font-medium text-white/80">
+                                        <Calendar size={12}/> {new Date(course.created_at).toLocaleDateString()}
+                                    </div>
                                 </div>
-                                <button
-                                    onClick={(e) => handleDelete(e, course.id)}
-                                    className="p-2 bg-black/10 hover:bg-black/30 rounded-full transition-colors"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={(e) => startEdit(e, course)}
+                                        className="p-2 bg-black/20 hover:bg-black/40 rounded-xl transition-colors backdrop-blur-sm"
+                                        title="Renommer"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleDelete(e, course.id)}
+                                        className="p-2 bg-black/20 hover:bg-red-500/80 rounded-xl transition-colors backdrop-blur-sm"
+                                        title="Supprimer"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Middle: Big Title */}
-                            <div>
-                                <h3 className="text-3xl font-black leading-tight mb-2 line-clamp-3 drop-shadow-md">
-                                    {course.title}
-                                </h3>
-                                <div className="h-1 w-12 bg-white/50 rounded-full"></div>
+                            {/* Middle: Title (Editable) */}
+                            <div className="relative z-10 mt-4 mb-4 flex-1">
+                                {editingId === course.id ? (
+                                    <div onClick={(e) => e.preventDefault()} className="flex flex-col gap-2">
+                                        <input
+                                            type="text"
+                                            value={editTitle}
+                                            onChange={(e) => setEditTitle(e.target.value)}
+                                            className="w-full bg-white/20 text-white p-2 rounded-lg outline-none font-bold border border-white/30 placeholder-white/50"
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button onClick={saveEdit} className="bg-green-500 p-1.5 rounded-lg hover:bg-green-600"><Check size={14}/></button>
+                                            <button onClick={cancelEdit} className="bg-red-500 p-1.5 rounded-lg hover:bg-red-600"><X size={14}/></button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <h3 className="text-2xl font-black leading-tight mb-2 line-clamp-3 drop-shadow-sm">
+                                            {course.title}
+                                        </h3>
+                                        <div className="h-1 w-12 bg-white/50 rounded-full"></div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Bottom: Action */}
-                            <div className="flex items-center gap-2 text-sm font-bold bg-white/10 backdrop-blur-md p-3 rounded-xl w-fit">
+                            <div className="relative z-10 flex items-center gap-2 text-sm font-bold bg-white/10 backdrop-blur-md p-3 rounded-xl w-fit group-hover:bg-white/20 transition-colors border border-white/10">
                                 Ouvrir le cours <ArrowRight size={16}/>
                             </div>
                         </div>
