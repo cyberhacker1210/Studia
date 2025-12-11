@@ -7,14 +7,15 @@ import { Home, Plus, MessageSquare, Library, BarChart3, Brain, Layers } from 'lu
 import EnergyBadge from '@/components/workspace/EnergyBadge';
 import ReferralHandler from '@/components/workspace/ReferralHandler';
 import { useSupabaseUser } from '@/lib/useSupabaseUser';
-import { useAnalytics } from '@/hooks/useAnalytics'; // ✅ Import du hook
+// ✅ IMPORT DU HOOK
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Initialisation des services
   useSupabaseUser();
-  useAnalytics(); // ✅ Activation du tracking automatique
+  useAnalytics(); // ✅ ACTIVE LE TRACKING ICI
 
   const NavItem = ({ href, icon: Icon, label }: any) => {
     const isActive = href === '/workspace' ? pathname === href : pathname?.startsWith(href);

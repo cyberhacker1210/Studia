@@ -12,7 +12,9 @@ import hashlib
 import hmac
 
 # --- IMPORTS LOCAUX ---
+# ✅ IMPORT CENTRALISÉ
 from .database import supabase
+
 from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
 from .learning_path import (
@@ -68,6 +70,7 @@ class MasteryRequest(BaseModel): course_text: str
 @app.get("/")
 def root(): return {"status": "online", "version": "2.6.2"}
 
+# 1. EXTRACTION
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
 async def extract_text_endpoint(request: ExtractTextRequest):
     try:
@@ -85,6 +88,7 @@ async def extract_text_endpoint(request: ExtractTextRequest):
         print(f"❌ Error Extract: {e}")
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
+# 2. QUIZ
 @app.post("/api/quiz/generate-from-text", response_model=QuizResponse)
 async def generate_quiz_text(request: QuizGenerateFromTextRequest):
     try:
@@ -102,6 +106,7 @@ async def generate_quiz_image(request: QuizGenerateRequest):
         return QuizResponse(id=str(uuid.uuid4()), questions=questions, createdAt=datetime.now().isoformat(), extractedText=quiz_data.get("extractedText", ""))
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# 3. FLASHCARDS
 @app.post("/api/flashcards/generate", response_model=FlashcardResponse)
 async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
     try:
@@ -110,6 +115,7 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
         return FlashcardResponse(id=str(uuid.uuid4()), flashcards=cards, createdAt=datetime.now().isoformat())
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# 4. PARCOURS ADAPTATIF
 @app.post("/api/path/diagnostic")
 async def diagnostic_endpoint(req: CourseRequest):
     try: return generate_diagnostic_quiz(req.course_text)
@@ -135,6 +141,7 @@ async def evaluate_answer_endpoint(req: EvalRequest):
     try: return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
     except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
 
+# 5. AUTRES
 @app.post("/api/motivation/generate", response_model=MotivationResponse)
 async def motivation_endpoint(request: MotivationRequest):
     try: return generate_daily_plan(request.goal, request.deadline, request.current_xp)
@@ -151,9 +158,10 @@ async def chat_tutor_endpoint(request: ChatRequest):
 async def path_generate_legacy(request: MasteryRequest):
     return generate_mastery_path(request.course_text)
 
-# ✅ ADMIN ROUTER
+# ✅ 6. ANALYTICS & ADMIN
 app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
 
+# 7. WEBHOOKS
 @app.post("/api/webhook/lemon")
 async def lemon_webhook(request: Request):
     if not LEMON_WEBHOOK_SECRET: return {"error": "No secret"}

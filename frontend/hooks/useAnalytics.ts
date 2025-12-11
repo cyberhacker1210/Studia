@@ -11,7 +11,7 @@ export function useAnalytics() {
   const { user } = useUser();
   const startTime = useRef<number>(Date.now());
 
-  // 1. Tracker les changements de page (Navigation)
+  // 1. Tracker les changements de page
   useEffect(() => {
     if (!user) return;
 
@@ -24,17 +24,22 @@ export function useAnalytics() {
       else if (pathname === '/workspace') feature = 'Dashboard';
 
       if (feature) {
-        // Utilise sendBeacon si dispo, sinon fetch
         const data = JSON.stringify({
           user_id: user.id,
           event_type: 'feature_use',
           event_data: { feature, path: pathname }
         });
 
+        // Utilise sendBeacon pour être plus fiable lors de la navigation
         if (navigator.sendBeacon) {
             navigator.sendBeacon(`${API_URL}/api/analytics/track`, data);
         } else {
-            fetch(`${API_URL}/api/analytics/track`, { method: 'POST', body: data, headers: {'Content-Type': 'application/json'}});
+            // Fallback pour les vieux navigateurs
+            fetch(`${API_URL}/api/analytics/track`, {
+                method: 'POST',
+                body: data,
+                headers: {'Content-Type': 'application/json'}
+            }).catch(() => {});
         }
       }
     };
