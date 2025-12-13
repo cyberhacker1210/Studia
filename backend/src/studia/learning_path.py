@@ -23,6 +23,13 @@ class QuizItem(BaseModel):
     explanation: str
 
 
+# ✅ NOUVEAU MODÈLE STRUCTURE
+class StructureItem(BaseModel):
+    level: int = Field(description="Niveau hiérarchique (1 pour I, 2 pour A, 3 pour 1).")
+    title: str = Field(description="Le titre de la partie.")
+    missing_word: str = Field(description="Mot clé à deviner (optionnel).")
+
+
 # --- 2. MODÈLES D'ÉTAPES SPÉCIFIQUES ---
 
 class StepTheory(BaseModel):
@@ -45,41 +52,46 @@ class StepDeepQuiz(BaseModel):
     questions: List[QuizItem]
 
 
+class StepStructure(BaseModel):
+    title: str = Field(description="Titre de l'étape (ex: 'Plan du cours').")
+    items: List[StructureItem] = Field(description="La liste ordonnée des parties.")
+
+
 # --- 3. BLUEPRINTS PAR MATIÈRE ---
 
 class MathPath(BaseModel):
-    step_1_theorems: StepTheory = Field(description="Définitions et théorèmes mot pour mot.")
-    step_2_formulas: StepVocabulary = Field(description="Flashcards des formules.")
-    step_3_logic_quiz: StepDeepQuiz = Field(description="Quiz sur les hypothèses et pièges.")
+    step_1_theorems: StepTheory = Field(description="Définitions et théorèmes.")
+    step_2_formulas: StepVocabulary = Field(description="Flashcards formules.")
+    step_3_logic_quiz: StepDeepQuiz
 
 
 class HistoryPath(BaseModel):
-    step_1_chronology: StepVocabulary = Field(description="Flashcards des dates clés.")
-    step_2_context: StepTheory = Field(description="Cours Cause -> Fait -> Conséquence.")
-    step_3_concepts: StepDeepQuiz = Field(description="Quiz sur les notions clés.")
+    step_1_structure: StepStructure = Field(description="Le plan détaillé à maîtriser.")
+    step_2_chronology: StepVocabulary
+    step_3_concepts: StepDeepQuiz
 
 
 class PhilosophyPath(BaseModel):
-    step_1_concepts: StepVocabulary = Field(description="Définitions précises (ex: Légal/Légitime).")
-    step_2_authors: StepTheory = Field(description="Fiches auteurs et citations.")
-    step_3_method: StepMethodology = Field(description="Structure de la dissertation.")
+    step_1_structure: StepStructure
+    step_2_authors: StepTheory
+    step_3_method: StepMethodology
 
 
 class SVTPath(BaseModel):
-    step_1_keywords: StepVocabulary = Field(description="Mots-clés obligatoires du correcteur.")
-    step_2_mechanism: StepTheory = Field(description="Explication des mécanismes (Observation->Déduction).")
+    step_1_keywords: StepVocabulary
+    step_2_mechanism: StepTheory
     step_3_validation: StepDeepQuiz
 
 
 class LanguagePath(BaseModel):
-    step_1_grammar: StepTheory = Field(description="Règles grammaticales avancées.")
-    step_2_idioms: StepVocabulary = Field(description="Expressions idiomatiques pour le 20/20.")
+    step_1_grammar: StepTheory
+    step_2_idioms: StepVocabulary
     step_3_vocab_quiz: StepDeepQuiz
 
 
 class GeneralPath(BaseModel):
-    step_1_learn: StepTheory
-    step_2_memorize: StepVocabulary
+    step_1_structure: StepStructure
+    step_2_learn: StepTheory
     step_3_check: StepDeepQuiz
 
 
@@ -90,22 +102,22 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
 
     safe_text = course_text[:25000]
 
-    # Sélection de la stratégie
-    if subject == "Mathématiques" or subject == "NSI":
+    # Sélection Stratégique
+    if subject in ["Mathématiques", "NSI"]:
         schema = MathPath
-        prompt = "Tu es un prof de Maths d'élite. Rigueur absolue."
-    elif subject == "Histoire-Géo" or subject == "HGGSP":
+        prompt = "Tu es un prof de Maths. Rigueur absolue."
+    elif subject in ["Histoire-Géo", "HGGSP", "Géopolitique"]:
         schema = HistoryPath
-        prompt = "Tu es un prof d'Histoire. Chronologie et logique causale."
-    elif subject == "Philosophie" or subject == "HLP":
+        prompt = "Tu es un prof d'Histoire. Le PLAN est crucial."
+    elif subject in ["Philosophie", "HLP", "Français", "Littérature"]:
         schema = PhilosophyPath
-        prompt = "Tu es un prof de Philo. Conceptualisation et Auteurs."
-    elif subject == "SVT" or subject == "Physique-Chimie":
+        prompt = "Tu es un prof de Lettres. Structure de la pensée."
+    elif subject in ["SVT", "Physique-Chimie"]:
         schema = SVTPath
-        prompt = "Tu es un prof de Sciences. Mots-clés et démarche scientifique."
-    elif subject in ["Anglais", "Espagnol", "Allemand", "Français"]:
+        prompt = "Tu es un prof de Sciences."
+    elif subject in ["Anglais", "Espagnol", "Allemand"]:
         schema = LanguagePath
-        prompt = "Tu es un prof de Langues. Vocabulaire riche et Grammaire."
+        prompt = "Tu es un prof de Langues."
     else:
         schema = GeneralPath
         prompt = "Tu es un pédagogue expert."
@@ -122,35 +134,23 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
 
         raw_data = completion.choices[0].message.parsed.model_dump()
 
-        # --- DÉTECTION INTELLIGENTE DES ÉTAPES ---
+        # Transformation
         steps = []
         for key, value in raw_data.items():
             step_type = "unknown"
 
-            # 1. Détection par contenu (Plus fiable)
-            if "content_markdown" in value:
+            # Détection intelligente
+            if "items" in value and isinstance(value["items"], list):
+                step_type = "structure"
+            elif "content_markdown" in value:
                 step_type = "learn"
             elif "flashcards" in value:
                 step_type = "flashcards"
-                if not value["flashcards"]:  # Sécurité
-                    value["flashcards"] = [{"front": "Erreur", "back": "Aucune carte générée."}]
+                if not value["flashcards"]: value["flashcards"] = [{"front": "Erreur", "back": "Vide"}]
             elif "questions" in value:
                 step_type = "quiz"
             elif "tips_markdown" in value:
                 step_type = "method"
-
-            # 2. Fallback par nom de clé (Au cas où)
-            if step_type == "unknown":
-                if "theorems" in key or "context" in key or "learn" in key or "mechanism" in key or "grammar" in key or "authors" in key:
-                    step_type = "learn"
-                elif "formulas" in key or "chronology" in key or "memorize" in key or "keywords" in key or "idioms" in key or "concepts" in key:
-                    step_type = "flashcards"
-                elif "quiz" in key or "check" in key or "logic" in key or "validation" in key:
-                    step_type = "quiz"
-                elif "method" in key:
-                    step_type = "method"
-
-            print(f"👉 Étape détectée : {key} -> {step_type}")
 
             steps.append({
                 "type": step_type,
@@ -165,8 +165,8 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
         return {"steps": []}
 
 
-# --- FONCTIONS ADAPTATIVES (Inchangées mais nécessaires) ---
-
+# --- FONCTIONS ADAPTATIVES ---
+# ... (Modèles adaptatifs inchangés - QuizQuestionAdaptive, etc.)
 class QuizQuestionAdaptive(BaseModel):
     question: str;
     options: List[str];
@@ -239,8 +239,42 @@ def generate_daily_plan(goal: str, deadline: str, current_xp: int) -> dict:
     return completion.choices[0].message.parsed.model_dump()
 
 
+# ✅ CORRECTION CRITIQUE DU TUTEUR
 def chat_with_tutor(history: list, course_context: str, current_message: str) -> str:
-    messages = [{"role": "system", "content": "Tuteur expert."}] + history[-4:] + [
-        {"role": "user", "content": current_message}]
-    res = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
-    return res.choices[0].message.content
+    """Chatbot Tuteur avec contexte complet."""
+
+    # On limite le contexte pour ne pas exploser les tokens, mais on en garde assez (15k caractères)
+    safe_context = course_context[:15000]
+
+    system_prompt = f"""Tu es un tuteur personnel expert.
+    Ton élève te pose des questions sur un cours spécifique.
+
+    VOICI LE CONTENU DU COURS (C'est ta source de vérité absolue) :
+    ---
+    {safe_context}
+    ---
+
+    Réponds aux questions en utilisant UNIQUEMENT les informations ci-dessus si possible.
+    Si la réponse n'est pas dans le cours, dis-le poliment mais essaie d'aider avec tes connaissances générales.
+    Sois pédagogique, clair et encourageant.
+    """
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # On ajoute l'historique récent (les 6 derniers messages) pour la conversation
+    # On filtre les messages système de l'historique pour ne pas polluer
+    for msg in history[-6:]:
+        if msg.get("role") != "system":
+            messages.append(msg)
+
+    messages.append({"role": "user", "content": current_message})
+
+    try:
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages
+        )
+        return res.choices[0].message.content
+    except Exception as e:
+        print(f"❌ Erreur Chat: {e}")
+        return "Désolé, j'ai eu un petit problème technique. Peux-tu reformuler ?"
