@@ -6,8 +6,8 @@ import { useUser } from '@clerk/nextjs';
 import { getCourseById, Course } from '@/lib/courseService';
 import {
     ArrowLeft, Brain, Zap, Loader2, ChevronRight,
-    Sparkles, Play, X, BookOpen, Calendar, ArrowRight as ArrowIcon,
-    AlignLeft, List, Type, Minus, Plus
+    Sparkles, Play, X, BookOpen, Calendar, ArrowRight ,
+    AlignLeft, List, Type, Minus, Plus, Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -118,7 +118,7 @@ export default function CourseDetailPage() {
                         <h2 className="text-3xl md:text-4xl font-black text-white mb-4">Mode Parcours 20/20</h2>
                         <p className="text-slate-300 text-lg font-medium max-w-xl">L'expérience complète : Apprentissage, Mémorisation et Validation.</p>
                     </div>
-                    <div className="relative z-10 bg-white text-slate-900 px-8 py-4 rounded-2xl font-bold text-lg flex items-center gap-3 group-hover:scale-105 transition-transform shadow-xl">Lancer <ArrowRightIcon strokeWidth={3} /></div>
+                    <div className="relative z-10 bg-white text-slate-900 px-8 py-4 rounded-2xl font-bold text-lg flex items-center gap-3 group-hover:scale-105 transition-transform shadow-xl">Lancer <ArrowRight strokeWidth={3} /></div>
                 </Link>
             </div>
             <ActionCard title="Flashcards" desc="Mémorisation active." icon={Zap} color="amber" href={`/workspace/courses/${id}/generate-flashcards`} />
