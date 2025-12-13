@@ -3,42 +3,44 @@
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, UploadCloud, Layers, Sparkles, X, Check, Bot, ArrowRight, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, Check, Book, Tag } from 'lucide-react';
 import { saveCourse } from '@/lib/courseService';
 import { extractTextFromMultipleImages } from '@/lib/api';
 import { addXp } from '@/lib/gamificationService';
 import MultiImageCapture from '@/components/workspace/MultiImageCapture';
-// 👇 Import du Hook Énergie
 import { useEnergy } from '@/hooks/useEnergy';
+
+const SUBJECTS = [
+  "Mathématiques", "Physique-Chimie", "SVT", "Histoire-Géo",
+  "Philosophie", "Français", "Anglais", "Espagnol", "SES", "NSI", "Autre"
+];
 
 export default function CapturePage() {
   const { user } = useUser();
   const router = useRouter();
-
-  // 👇 Initialisation du Hook
-  const { consumeEnergy, isPremium } = useEnergy();
+  const { consumeEnergy } = useEnergy();
 
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'upload' | 'processing' | 'success'>('upload');
+
+  const [courseTitle, setCourseTitle] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+
+  const [step, setStep] = useState<'form' | 'upload' | 'processing' | 'success'>('form');
   const [error, setError] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<number | null>(null);
 
-  const handleImagesSelected = (images: string[]) => {
-    setSelectedImages(images);
-    setError(null);
+  const handleFormSubmit = () => {
+      if (!courseTitle.trim() || !selectedSubject) return;
+      setStep('upload');
   };
 
   const handleExtract = async () => {
     if (!user || selectedImages.length === 0) return;
 
-    // 🛑 VÉRIFICATION ÉNERGIE (Coût: 2)
     const canProceed = await consumeEnergy(2);
-
     if (!canProceed) {
-        if(confirm("⚡️ Pas assez d'énergie !\n\nIl vous faut 2 éclairs pour numériser un cours complet.\nRevenez demain ou passez Premium pour l'illimité.")) {
-            router.push('/workspace/pricing');
-        }
+        router.push('/workspace/pricing');
         return;
     }
 
@@ -47,25 +49,16 @@ export default function CapturePage() {
       setStep('processing');
       setError(null);
 
-      // Simulation UX
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Extraction
       const result = await extractTextFromMultipleImages(selectedImages);
+      const course = await saveCourse(user.id, result.extractedText, courseTitle, selectedSubject);
 
-      // Sauvegarde
-      const autoTitle = `Cours du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`;
-      const course = await saveCourse(user.id, result.extractedText, autoTitle);
-
-      // Gamification
       await addXp(user.id, 50, 'Nouveau cours créé');
-
       setCourseId(course.id);
       setStep('success');
 
     } catch (err: any) {
       console.error('Erreur:', err);
-      setError(err.message || "Une erreur est survenue lors de l'analyse.");
+      setError(err.message);
       setStep('upload');
     } finally {
       setLoading(false);
@@ -73,143 +66,103 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-10 px-6 pb-32">
-
-        {/* Navigation Retour */}
-        {step === 'upload' && (
-            <button
-              onClick={() => router.push('/workspace')}
-              className="group flex items-center gap-3 text-slate-500 hover:text-slate-900 mb-12 font-bold text-sm transition-colors w-fit"
-            >
-              <div className="w-10 h-10 rounded-full border-2 border-slate-100 flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all bg-slate-50">
-                  <ArrowLeft size={18} />
-              </div>
-              Annuler
+    <div className="max-w-3xl mx-auto py-10 px-6 pb-32">
+        {step !== 'processing' && (
+            <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 font-bold mb-8 hover:text-slate-900 transition-colors">
+                <ArrowLeft size={18}/> Annuler
             </button>
         )}
 
-        {/* ÉTAPE 1 : UPLOAD */}
-        {step === 'upload' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <div className="text-center mb-16">
-                    <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-6 border border-blue-100 shadow-sm">
-                        <Sparkles size={12} /> IA Vision
-                    </div>
-                    <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-4 tracking-tight">
-                        Numériser un cours
-                    </h1>
-                    <p className="text-xl text-slate-500 font-medium max-w-lg mx-auto leading-relaxed">
-                        Prenez vos notes en photo. Je m'occupe de les lire, les trier et les transformer en quiz.
-                    </p>
+        {/* ÉTAPE 1 : MATIÈRE */}
+        {step === 'form' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+                <div className="text-center mb-10">
+                    <h1 className="text-3xl font-black text-slate-900 mb-2">Quel est ce cours ?</h1>
+                    <p className="text-slate-500">Pour activer la méthodologie 20/20 adaptée.</p>
                 </div>
 
-                <div className="bg-white border-2 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-xl shadow-slate-200/50 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-bl-[15rem] -z-0 opacity-40 pointer-events-none"></div>
-
-                    <div className="relative z-10">
-                        <MultiImageCapture
-                            onImagesSelected={handleImagesSelected}
-                            maxImages={10}
+                <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                            <Book size={16}/> Titre du chapitre
+                        </label>
+                        <input
+                            type="text" placeholder="Ex: La Guerre Froide"
+                            className="w-full p-4 rounded-xl bg-slate-50 border-2 border-slate-100 focus:border-slate-900 outline-none font-bold text-lg"
+                            value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} autoFocus
                         />
+                    </div>
 
-                        {/* ACTION BAR */}
-                        {selectedImages.length > 0 && (
-                            <div className="mt-12 pt-8 border-t-2 border-slate-50 flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-bottom-4">
-                                <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-                                    <div className="relative">
-                                        <Layers size={24} className="text-blue-600" />
-                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                                            {selectedImages.length}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-slate-900">Pages prêtes</span>
-                                        <span className="text-xs font-medium text-slate-500">Max 10 pages</span>
-                                    </div>
-                                </div>
-
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                            <Tag size={16}/> Matière
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {SUBJECTS.map(sub => (
                                 <button
-                                    onClick={handleExtract}
-                                    disabled={loading}
-                                    className="btn-b-primary w-full md:w-auto text-lg px-10 py-4 shadow-xl shadow-blue-200 hover:shadow-blue-300 min-w-[200px] flex items-center justify-center gap-2"
+                                    key={sub} onClick={() => setSelectedSubject(sub)}
+                                    className={`py-3 px-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                        selectedSubject === sub 
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md transform scale-105' 
+                                        : 'bg-white text-slate-500 border-slate-100 hover:border-slate-300'
+                                    }`}
                                 >
-                                    {loading ? <Loader2 className="animate-spin" size={24}/> : <UploadCloud size={24} />}
-                                    <span>
-                                        {loading ? 'Analyse...' : 'Générer le Cours'}
-                                    </span>
-                                    {/* Affichage du coût en énergie */}
-                                    {!isPremium && !loading && (
-                                        <span className="ml-2 text-xs bg-slate-800 text-yellow-400 px-2 py-0.5 rounded-full font-bold">
-                                            -2 ⚡️
-                                        </span>
-                                    )}
+                                    {sub}
                                 </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {error && (
-                    <div className="mt-8 mx-auto max-w-md bg-red-50 text-red-600 px-6 py-4 rounded-2xl font-bold text-center border-2 border-red-100 flex items-center justify-center gap-3 animate-in zoom-in shadow-sm">
-                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <X size={16} strokeWidth={3} />
+                            ))}
                         </div>
-                        {error}
                     </div>
-                )}
+
+                    <button onClick={handleFormSubmit} disabled={!courseTitle || !selectedSubject} className="btn-b-primary w-full py-4 text-lg mt-4 disabled:opacity-50">
+                        Continuer
+                    </button>
+                </div>
             </div>
         )}
 
-        {/* ÉTAPE 2 : TRAITEMENT */}
+        {/* ÉTAPE 2 : UPLOAD */}
+        {step === 'upload' && (
+            <div className="animate-in slide-in-from-right-8">
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-900">{courseTitle}</h2>
+                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase">{selectedSubject}</span>
+                    </div>
+                </div>
+                <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-6 shadow-sm">
+                    <MultiImageCapture onImagesSelected={setSelectedImages} maxImages={10} />
+                    {selectedImages.length > 0 && (
+                        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                            <button onClick={handleExtract} disabled={loading} className="btn-b-primary px-8 py-3 text-lg flex items-center gap-2">
+                                {loading ? <Loader2 className="animate-spin"/> : <Sparkles size={20} fill="currentColor"/>}
+                                {loading ? 'Analyse...' : 'Générer'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+                {error && <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-xl font-bold text-center border-2 border-red-100">{error}</div>}
+            </div>
+        )}
+
+        {/* ÉTAPE 3 : PROCESSING */}
         {step === 'processing' && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in duration-700">
-                <div className="relative w-40 h-40 mb-10">
-                    <div className="absolute inset-0 border-[6px] border-slate-100 rounded-full"></div>
-                    <div className="absolute inset-0 border-[6px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-                    <div className="absolute inset-4 border-[6px] border-purple-100 rounded-full border-t-transparent animate-spin-slow reverse"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <Bot size={56} className="text-slate-900 animate-bounce" />
-                    </div>
-                </div>
-
-                <h2 className="text-4xl font-black text-slate-900 mb-4">Analyse en cours...</h2>
-
-                <div className="bg-slate-50 px-8 py-6 rounded-2xl border border-slate-100 max-w-sm mx-auto">
-                    <div className="space-y-3 text-slate-500 font-bold text-sm text-left">
-                        <p className="flex items-center gap-3 animate-pulse">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Lecture du texte manuscrit
-                        </p>
-                        <p className="flex items-center gap-3 animate-pulse delay-100">
-                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Structuration des chapitres
-                        </p>
-                        <p className="flex items-center gap-3 animate-pulse delay-200">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span> Génération du résumé
-                        </p>
-                    </div>
-                </div>
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center animate-in fade-in">
+                <Loader2 className="w-16 h-16 text-blue-600 animate-spin mb-6" />
+                <h2 className="text-2xl font-black text-slate-900 mb-2">Analyse Méthodique...</h2>
+                <p className="text-slate-500 font-medium">Application de la stratégie <strong className="text-blue-600">{selectedSubject}</strong>.</p>
             </div>
         )}
 
-        {/* ÉTAPE 3 : SUCCÈS */}
+        {/* ÉTAPE 4 : SUCCESS */}
         {step === 'success' && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in zoom-in duration-500">
-                <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center mb-10 shadow-2xl shadow-green-100 relative">
-                    <Check size={64} strokeWidth={4} className="text-green-600" />
-                    <div className="absolute -right-4 -top-4 bg-yellow-400 text-slate-900 text-sm font-black px-4 py-1.5 rounded-full border-4 border-white shadow-md animate-bounce">
-                        +50 XP
-                    </div>
+            <div className="text-center py-20 animate-in zoom-in">
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 text-green-600 shadow-xl">
+                    <Check size={48} strokeWidth={4} />
                 </div>
-
-                <h2 className="text-5xl font-black text-slate-900 mb-6">C'est prêt !</h2>
-                <p className="text-xl text-slate-500 font-medium mb-12 max-w-md mx-auto leading-relaxed">
-                    Votre cours a été numérisé et sauvegardé avec succès.
-                </p>
-
-                <button
-                    onClick={() => router.push(`/workspace/courses/${courseId}`)}
-                    className="btn-b-primary text-xl px-12 py-5 shadow-2xl hover:shadow-blue-500/30"
-                >
-                    Voir mon cours <ArrowRight className="ml-2" strokeWidth={3} />
+                <h1 className="text-4xl font-black text-slate-900 mb-4">Cours Prêt !</h1>
+                <p className="text-slate-500 mb-10">Prêt pour la révision active.</p>
+                <button onClick={() => router.push(`/workspace/courses/${courseId}`)} className="btn-b-primary px-12 py-4 text-lg">
+                    Accéder au cours
                 </button>
             </div>
         )}

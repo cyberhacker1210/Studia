@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { getUserCourses, deleteCourse, updateCourse, Course } from '@/lib/courseService';
-import { BookOpen, Trash2, Calendar, Plus, ArrowRight, Edit2, Check, X, Filter } from 'lucide-react';
+import { BookOpen, Trash2, Calendar, Plus, ArrowRight, Edit2, Check, X, Filter, Tag } from 'lucide-react';
 import Link from 'next/link';
 
-const SUBJECTS = ["Tous", "Mathématiques", "Physique-Chimie", "SVT", "Histoire-Géo", "Philosophie", "SES", "Langues", "Autre"];
+const SUBJECTS = ["Tous", "Mathématiques", "Physique-Chimie", "SVT", "Histoire-Géo", "Philosophie", "Français", "Anglais", "Espagnol", "Autre"];
 
 export default function CoursesPage() {
   const { user } = useUser();
@@ -15,7 +15,6 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState("Tous");
 
-  // États pour l'édition rapide
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -29,7 +28,6 @@ export default function CoursesPage() {
     }
   }, [user]);
 
-  // Filtrage
   useEffect(() => {
     if (selectedSubject === "Tous") {
       setFilteredCourses(courses);
@@ -39,69 +37,50 @@ export default function CoursesPage() {
   }, [selectedSubject, courses]);
 
   const handleDelete = async (e: any, courseId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm('Supprimer définitivement ce cours ?')) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!confirm('Supprimer définitivement ?')) return;
     if (!user) return;
     await deleteCourse(courseId, user.id);
-    const newCourses = courses.filter(c => c.id !== courseId);
-    setCourses(newCourses);
+    setCourses(courses.filter(c => c.id !== courseId));
   };
 
   const startEdit = (e: any, course: Course) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       setEditingId(course.id);
       setEditTitle(course.title);
   };
 
   const saveEdit = async (e: any) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       if (!user || !editingId) return;
-
-      try {
-          await updateCourse(editingId, user.id, { title: editTitle });
-          const newCourses = courses.map(c => c.id === editingId ? { ...c, title: editTitle } : c);
-          setCourses(newCourses);
-          setEditingId(null);
-      } catch (err) {
-          console.error(err);
-      }
-  };
-
-  const cancelEdit = (e: any) => {
-      e.preventDefault();
-      e.stopPropagation();
+      await updateCourse(editingId, user.id, { title: editTitle });
+      setCourses(courses.map(c => c.id === editingId ? { ...c, title: editTitle } : c));
       setEditingId(null);
   };
 
-  // Palette de dégradés
   const gradients = [
-    "from-blue-500 to-indigo-600",
-    "from-purple-500 to-pink-600",
-    "from-emerald-400 to-teal-600",
-    "from-orange-400 to-red-500",
+    "from-blue-500 to-indigo-600", "from-purple-500 to-pink-600",
+    "from-emerald-400 to-teal-600", "from-orange-400 to-red-500"
   ];
 
   return (
     <div className="pb-20 px-4 max-w-7xl mx-auto">
 
-      {/* EN-TÊTE */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">Bibliothèque</h1>
-            <p className="text-slate-500 font-medium">{courses.length} cours enregistrés</p>
+            <h1 className="text-3xl font-black text-slate-900">Mes Cours</h1>
+            <p className="text-slate-500 font-medium">Organisés pour la réussite.</p>
           </div>
           <Link href="/workspace/capture" className="btn-b-primary py-3 px-6 shadow-lg hover:scale-105 transition-transform">
               <Plus size={20} /> Nouveau Cours
           </Link>
       </div>
 
-      {/* FILTRES */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-hide">
-          <div className="flex items-center gap-2 text-slate-400 mr-2">
-              <Filter size={16} /> <span className="text-xs font-bold uppercase">Filtres</span>
+      {/* TABS FILTRES */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-hide">
+          <div className="flex items-center gap-2 text-slate-400 mr-2 shrink-0">
+              <Filter size={16} /> <span className="text-xs font-bold uppercase">Matières</span>
           </div>
           {SUBJECTS.map(sub => (
               <button
@@ -118,7 +97,7 @@ export default function CoursesPage() {
           ))}
       </div>
 
-      {/* LISTE DES COURS */}
+      {/* GRILLE COURS */}
       {loading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1,2,3].map(i => <div key={i} className="h-64 bg-slate-100 rounded-[2rem] animate-pulse"></div>)}
@@ -128,9 +107,9 @@ export default function CoursesPage() {
               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                   <BookOpen size={32} className="text-slate-300" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucun cours trouvé.</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucun cours ici.</h3>
               <p className="text-slate-500 mb-8 max-w-xs mx-auto">
-                  {selectedSubject === "Tous" ? "Commencez par ajouter votre premier cours." : `Aucun cours de ${selectedSubject} pour l'instant.`}
+                  {selectedSubject === "Tous" ? "Ajoutez votre premier cours." : `Pas encore de cours en ${selectedSubject}.`}
               </p>
               {selectedSubject === "Tous" && (
                   <Link href="/workspace/capture" className="btn-b-primary text-sm py-3 px-8">
@@ -144,21 +123,14 @@ export default function CoursesPage() {
                   const gradient = gradients[index % gradients.length];
 
                   return (
-                    <Link
-                        href={`/workspace/courses/${course.id}`}
-                        key={course.id}
-                        className="group relative block h-full"
-                    >
+                    <Link href={`/workspace/courses/${course.id}`} key={course.id} className="group relative block h-full">
                         <div className={`h-full min-h-[280px] rounded-[2rem] p-6 flex flex-col justify-between text-white shadow-lg bg-gradient-to-br ${gradient} transition-transform active:scale-95 hover:-translate-y-2 relative overflow-hidden`}>
-
-                            {/* Texture de fond */}
                             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
 
-                            {/* Top: Badges & Actions */}
                             <div className="relative z-10 flex justify-between items-start">
                                 <div className="flex flex-col gap-2">
-                                    <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit border border-white/10">
-                                        {course.subject || 'Général'}
+                                    <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit border border-white/10 flex items-center gap-1">
+                                        <Tag size={10}/> {course.subject || 'Général'}
                                     </div>
                                     <div className="flex items-center gap-1 text-xs font-medium text-white/80">
                                         <Calendar size={12}/> {new Date(course.created_at).toLocaleDateString()}
@@ -166,53 +138,31 @@ export default function CoursesPage() {
                                 </div>
 
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={(e) => startEdit(e, course)}
-                                        className="p-2 bg-black/20 hover:bg-black/40 rounded-xl transition-colors backdrop-blur-sm"
-                                        title="Renommer"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => handleDelete(e, course.id)}
-                                        className="p-2 bg-black/20 hover:bg-red-500/80 rounded-xl transition-colors backdrop-blur-sm"
-                                        title="Supprimer"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    <button onClick={(e) => startEdit(e, course)} className="p-2 bg-black/20 hover:bg-black/40 rounded-xl transition-colors backdrop-blur-sm"><Edit2 size={16} /></button>
+                                    <button onClick={(e) => handleDelete(e, course.id)} className="p-2 bg-black/20 hover:bg-red-500/80 rounded-xl transition-colors backdrop-blur-sm"><Trash2 size={16} /></button>
                                 </div>
                             </div>
 
-                            {/* Middle: Title (Editable) */}
                             <div className="relative z-10 mt-4 mb-4 flex-1">
                                 {editingId === course.id ? (
                                     <div onClick={(e) => e.preventDefault()} className="flex flex-col gap-2">
                                         <input
-                                            type="text"
-                                            value={editTitle}
-                                            onChange={(e) => setEditTitle(e.target.value)}
-                                            className="w-full bg-white/20 text-white p-2 rounded-lg outline-none font-bold border border-white/30 placeholder-white/50"
-                                            autoFocus
-                                            onClick={(e) => e.stopPropagation()}
+                                            type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                                            className="w-full bg-white/20 text-white p-2 rounded-lg outline-none font-bold border border-white/30"
+                                            autoFocus onClick={(e) => e.stopPropagation()}
                                         />
                                         <div className="flex gap-2">
-                                            <button onClick={saveEdit} className="bg-green-500 p-1.5 rounded-lg hover:bg-green-600"><Check size={14}/></button>
-                                            <button onClick={cancelEdit} className="bg-red-500 p-1.5 rounded-lg hover:bg-red-600"><X size={14}/></button>
+                                            <button onClick={saveEdit} className="bg-green-500 p-1.5 rounded-lg"><Check size={14}/></button>
+                                            <button onClick={(e) => { e.preventDefault(); setEditingId(null); }} className="bg-red-500 p-1.5 rounded-lg"><X size={14}/></button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <>
-                                        <h3 className="text-2xl font-black leading-tight mb-2 line-clamp-3 drop-shadow-sm">
-                                            {course.title}
-                                        </h3>
-                                        <div className="h-1 w-12 bg-white/50 rounded-full"></div>
-                                    </>
+                                    <h3 className="text-2xl font-black leading-tight mb-2 line-clamp-3 drop-shadow-sm">{course.title}</h3>
                                 )}
                             </div>
 
-                            {/* Bottom: Action */}
                             <div className="relative z-10 flex items-center gap-2 text-sm font-bold bg-white/10 backdrop-blur-md p-3 rounded-xl w-fit group-hover:bg-white/20 transition-colors border border-white/10">
-                                Ouvrir le cours <ArrowRight size={16}/>
+                                Ouvrir <ArrowRight size={16}/>
                             </div>
                         </div>
                     </Link>

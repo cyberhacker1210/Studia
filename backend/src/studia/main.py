@@ -10,30 +10,16 @@ import uuid
 import os
 import hashlib
 import hmac
-
-# --- IMPORTS LOCAUX ---
-# ✅ IMPORT CENTRALISÉ
 from .database import supabase
-
 from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text, extract_text
 from .flashcard_generator import generate_flashcards
-from .learning_path import (
-    generate_diagnostic_quiz,
-    generate_remediation_content,
-    generate_validation_quiz,
-    generate_practice_exercise,
-    evaluate_student_answer,
-    chat_with_tutor,
-    generate_daily_plan,
-    generate_mastery_path
-)
+from .learning_path import *
 from .admin import router as admin_router
 
-app = FastAPI(title="Studia API", version="2.6.2")
+app = FastAPI(title="Studia API", version="2.7.0")
 
 LEMON_WEBHOOK_SECRET = os.getenv("LEMON_WEBHOOK_SECRET")
 
-# ✅ CONFIGURATION CORS BLINDÉE
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,6 +39,7 @@ class FlashcardGenerateRequest(BaseModel): course_text: str; num_cards: int = 10
 class Flashcard(BaseModel): front: str; back: str; category: Optional[str] = "Général"; difficulty: Optional[str] = "medium"
 class FlashcardResponse(BaseModel): id: str; flashcards: List[Flashcard]; createdAt: str
 
+# Parcours Adaptatif
 class CourseRequest(BaseModel): course_text: str
 class RemediationRequest(BaseModel): course_text: str; weak_concepts: List[str]; difficulty: int
 class ValidationRequest(BaseModel): course_text: str; concepts: List[str]; difficulty: int
@@ -63,32 +50,27 @@ class MotivationRequest(BaseModel): goal: str; deadline: str; current_xp: int = 
 class MotivationResponse(BaseModel): daily_message: str; quote: str; micro_tasks: List[dict]
 class ChatRequest(BaseModel): message: str; history: List[dict]; course_context: str
 class ChatResponse(BaseModel): reply: str
-class MasteryRequest(BaseModel): course_text: str
+# ✅ NOUVEAU MODÈLE
+class MasteryRequest(BaseModel): course_text: str; subject: str = "Général"
 
 # --- ENDPOINTS ---
 
 @app.get("/")
-def root(): return {"status": "online", "version": "2.6.2"}
+def root(): return {"status": "online", "version": "2.7.0"}
 
-# 1. EXTRACTION
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
 async def extract_text_endpoint(request: ExtractTextRequest):
     try:
-        print(f"📸 Extracting from {len(request.images)} images")
         combined_text = ""
         pages = []
         for i, img in enumerate(request.images):
             base64_img = img.split("base64,")[1] if "base64," in img else img
             text = extract_text(base64_img)
-            if not text: text = "[Texte illisible]"
             combined_text += text + "\n"
             pages.append({"pageNumber": i+1, "text": text, "wordCount": len(text.split())})
         return ExtractTextResponse(totalImages=len(request.images), pagesExtracted=len(pages), extractedText=combined_text, pages=pages)
-    except Exception as e:
-        print(f"❌ Error Extract: {e}")
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# 2. QUIZ
 @app.post("/api/quiz/generate-from-text", response_model=QuizResponse)
 async def generate_quiz_text(request: QuizGenerateFromTextRequest):
     try:
@@ -106,7 +88,6 @@ async def generate_quiz_image(request: QuizGenerateRequest):
         return QuizResponse(id=str(uuid.uuid4()), questions=questions, createdAt=datetime.now().isoformat(), extractedText=quiz_data.get("extractedText", ""))
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# 3. FLASHCARDS
 @app.post("/api/flashcards/generate", response_model=FlashcardResponse)
 async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
     try:
@@ -115,53 +96,35 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
         return FlashcardResponse(id=str(uuid.uuid4()), flashcards=cards, createdAt=datetime.now().isoformat())
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# 4. PARCOURS ADAPTATIF
 @app.post("/api/path/diagnostic")
-async def diagnostic_endpoint(req: CourseRequest):
-    try: return generate_diagnostic_quiz(req.course_text)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def diagnostic_endpoint(req: CourseRequest): return generate_diagnostic_quiz(req.course_text)
 
 @app.post("/api/path/remediation")
-async def remediation_endpoint(req: RemediationRequest):
-    try: return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def remediation_endpoint(req: RemediationRequest): return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
 
 @app.post("/api/path/validation")
-async def validation_endpoint(req: ValidationRequest):
-    try: return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def validation_endpoint(req: ValidationRequest): return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
 
 @app.post("/api/path/practice")
-async def practice_endpoint(req: PracticeRequest):
-    try: return generate_practice_exercise(req.course_text, req.difficulty)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def practice_endpoint(req: PracticeRequest): return generate_practice_exercise(req.course_text, req.difficulty)
 
 @app.post("/api/path/evaluate", response_model=EvaluateResponse)
-async def evaluate_answer_endpoint(req: EvalRequest):
-    try: return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def evaluate_answer_endpoint(req: EvalRequest): return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
 
-# 5. AUTRES
 @app.post("/api/motivation/generate", response_model=MotivationResponse)
-async def motivation_endpoint(request: MotivationRequest):
-    try: return generate_daily_plan(request.goal, request.deadline, request.current_xp)
-    except Exception as e: print(f"❌ {e}"); raise HTTPException(status_code=500, detail=str(e))
+async def motivation_endpoint(request: MotivationRequest): return generate_daily_plan(request.goal, request.deadline, request.current_xp)
 
 @app.post("/api/chat/tutor", response_model=ChatResponse)
 async def chat_tutor_endpoint(request: ChatRequest):
-    try:
-        reply = chat_with_tutor(request.history, request.course_context, request.message)
-        return ChatResponse(reply=reply)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    return ChatResponse(reply=chat_with_tutor(request.history, request.course_context, request.message))
 
+# ✅ NOUVEL ENDPOINT AVEC SUJET
 @app.post("/api/path/generate")
-async def path_generate_legacy(request: MasteryRequest):
-    return generate_mastery_path(request.course_text)
+async def path_generate_endpoint(request: MasteryRequest):
+    return generate_mastery_path(request.course_text, request.subject)
 
-# ✅ 6. ANALYTICS & ADMIN
 app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
 
-# 7. WEBHOOKS
 @app.post("/api/webhook/lemon")
 async def lemon_webhook(request: Request):
     if not LEMON_WEBHOOK_SECRET: return {"error": "No secret"}
