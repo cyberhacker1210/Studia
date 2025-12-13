@@ -3,41 +3,43 @@
 import { useState } from 'react';
 import { useUser, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { BookOpen, Home, BarChart3, Menu, X, LogOut } from 'lucide-react';
-import XpBar from './XpBar'; // Assurez-vous que l'import est correct
+import { BookOpen, Home, BarChart3, Menu, X, LogOut, Layers, MessageSquare, Plus } from 'lucide-react';
+import XpBar from './XpBar'; // ✅ Import de la barre d'XP
 
 export default function WorkspaceNavbar() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = () => {
+    // Redirection forcée après déconnexion pour éviter les états incohérents
     window.location.href = '/';
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200 shadow-sm">
-      <div className="px-4 py-3 flex items-center justify-between max-w-7xl mx-auto">
-        {/* Logo */}
-        <Link href="/workspace" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-            <BookOpen className="text-white" size={20} />
+    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200 shadow-sm transition-all">
+      <div className="px-4 py-3 md:px-6 flex items-center justify-between max-w-7xl mx-auto">
+
+        {/* LOGO */}
+        <Link href="/workspace" className="flex items-center space-x-3 group hover:opacity-80 transition-opacity">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+            <BookOpen className="text-white" size={22} strokeWidth={2.5} />
           </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="hidden sm:block">
+            <h1 className="text-xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent leading-tight">
               Studia
             </h1>
-            <p className="text-[10px] sm:text-xs text-gray-500 leading-none">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
               AI Learning
             </p>
           </div>
         </Link>
 
-        {/* Desktop Navigation + XP + Profile */}
-        <div className="hidden md:flex items-center space-x-4"> {/* space-x-4 espacer les éléments */}
+        {/* DESKTOP NAV */}
+        <div className="hidden md:flex items-center space-x-1">
 
           <Link
-            href="/"
-            className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all text-sm font-medium"
+            href="/workspace"
+            className="flex items-center space-x-2 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition-all font-bold text-sm hover:text-slate-900"
           >
             <Home size={18} />
             <span>Accueil</span>
@@ -45,77 +47,98 @@ export default function WorkspaceNavbar() {
 
           <Link
             href="/workspace/stats"
-            className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all text-sm font-medium"
+            className="flex items-center space-x-2 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition-all font-bold text-sm hover:text-slate-900"
           >
             <BarChart3 size={18} />
             <span>Stats</span>
           </Link>
 
-          {/* Zone Droite : XP + UserButton */}
-          <div className="flex items-center gap-3 pl-4 border-l border-gray-200 ml-2">
-            {/* Barre d'XP */}
+          {/* SÉPARATEUR */}
+          <div className="h-6 w-px bg-slate-200 mx-2"></div>
+
+          {/* ZONE DROITE : XP + USER */}
+          <div className="flex items-center gap-4 pl-2">
+            {/* Composant Gamification */}
             <XpBar />
 
-            {/* User Button */}
-            <UserButton afterSignOutUrl="/" />
+            {/* Avatar Clerk */}
+            <div className="p-0.5 bg-slate-100 rounded-full border border-slate-200 hover:border-blue-400 transition-colors cursor-pointer">
+                <UserButton afterSignOutUrl="/" />
+            </div>
           </div>
 
         </div>
 
-        {/* Mobile Menu Button */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 -mr-2 text-gray-700 active:bg-gray-100 rounded-lg transition-all"
-          aria-label="Menu"
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        {/* MOBILE ACTIONS */}
+        <div className="flex md:hidden items-center gap-3">
+            {/* XP visible aussi sur mobile en haut */}
+            <div className="scale-90 origin-right">
+                <XpBar />
+            </div>
+
+            {/* Menu Burger */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-slate-600 active:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+        </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* MOBILE MENU DROPDOWN */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white">
+        <div className="md:hidden border-t border-slate-200 bg-white absolute top-full left-0 w-full shadow-xl animate-in slide-in-from-top-2 z-40">
           <div className="p-4 space-y-2">
-            {/* XP Bar visible en mobile en haut du menu */}
-            <div className="flex justify-center mb-4">
-               <XpBar />
+
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl mb-4 border border-slate-100">
+                <UserButton afterSignOutUrl="/" />
+                <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">{user?.firstName || 'Étudiant'}</span>
+                    <span className="text-xs text-slate-500 font-medium">Compte Gratuit</span>
+                </div>
             </div>
 
             <Link
-              href="/"
+              href="/workspace"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+              className="flex items-center space-x-3 px-4 py-3 text-slate-700 active:bg-slate-100 rounded-xl transition-all font-bold"
             >
-              <Home size={20} />
-              <span className="font-medium">Accueil</span>
+              <Home size={20} className="text-blue-600" />
+              <span>Tableau de bord</span>
+            </Link>
+
+            <Link
+              href="/workspace/capture"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center space-x-3 px-4 py-3 text-slate-700 active:bg-slate-100 rounded-xl transition-all font-bold"
+            >
+              <Plus size={20} className="text-purple-600" />
+              <span>Nouveau Cours</span>
             </Link>
 
             <Link
               href="/workspace/stats"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+              className="flex items-center space-x-3 px-4 py-3 text-slate-700 active:bg-slate-100 rounded-xl transition-all font-bold"
             >
-              <BarChart3 size={20} />
-              <span className="font-medium">Statistiques</span>
+              <BarChart3 size={20} className="text-green-600" />
+              <span>Statistiques</span>
             </Link>
+
+            <div className="h-px bg-slate-100 my-2"></div>
 
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 handleSignOut();
               }}
-              className="w-full flex items-center space-x-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+              className="w-full flex items-center space-x-3 px-4 py-3 text-red-600 active:bg-red-50 rounded-xl transition-all font-bold"
             >
               <LogOut size={20} />
-              <span className="font-medium">Déconnexion</span>
+              <span>Déconnexion</span>
             </button>
-
-            <div className="pt-4 flex items-center justify-center space-x-3 px-4 border-t border-gray-100 mt-2">
-              <UserButton afterSignOutUrl="/" />
-              <span className="text-sm text-gray-600 font-medium">
-                {user?.firstName || user?.emailAddresses[0]?.emailAddress}
-              </span>
-            </div>
           </div>
         </div>
       )}

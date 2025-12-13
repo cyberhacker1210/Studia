@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { Loader2, ArrowLeft, CheckCircle, BookOpen, Layers, Brain, Lightbulb } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, BookOpen, Layers, Brain, Lightbulb, ListTree } from 'lucide-react';
 import { getCourseById } from '@/lib/courseService';
 import { addXp } from '@/lib/gamificationService';
 import QuizDisplay from '@/components/workspace/QuizDisplay';
 import FlashcardViewer from '@/components/workspace/FlashcardViewer';
+import StructurePuzzle from '@/components/workspace/StructurePuzzle'; // ✅ IMPORT
 import ReactMarkdown from 'react-markdown';
 import confetti from 'canvas-confetti';
 
@@ -90,7 +91,25 @@ export default function MasteryPage() {
 
         <div className="max-w-3xl mx-auto px-4 py-8">
 
-            {/* VUE : COURS (THEORY) */}
+            {/* VUE : STRUCTURE (NOUVEAU) */}
+            {currentStep.type === 'structure' && (
+                <div className="animate-in fade-in slide-in-from-right-8">
+                    <div className="text-center mb-10">
+                        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <ListTree size={32}/>
+                        </div>
+                        <h2 className="text-3xl font-black text-slate-900">Squelette du Cours</h2>
+                        <p className="text-slate-500 font-medium">Reconstruisez le plan pour comprendre la logique.</p>
+                    </div>
+
+                    <StructurePuzzle
+                        items={currentStep.data.items}
+                        onComplete={handleNext}
+                    />
+                </div>
+            )}
+
+            {/* VUE : COURS */}
             {currentStep.type === 'learn' && (
                 <div className="animate-in fade-in slide-in-from-right-8">
                     <div className="bg-white p-8 md:p-12 rounded-[2.5rem] border border-slate-200 shadow-sm mb-8">
@@ -106,7 +125,7 @@ export default function MasteryPage() {
                 </div>
             )}
 
-            {/* VUE : FLASHCARDS (VOCABULARY) */}
+            {/* VUE : FLASHCARDS */}
             {currentStep.type === 'flashcards' && (
                 <div className="animate-in fade-in slide-in-from-right-8">
                     <div className="text-center mb-8">
@@ -121,7 +140,7 @@ export default function MasteryPage() {
                 </div>
             )}
 
-            {/* VUE : QUIZ (VALIDATION) */}
+            {/* VUE : QUIZ */}
             {currentStep.type === 'quiz' && (
                 <div className="animate-in fade-in slide-in-from-right-8">
                     <div className="text-center mb-8">
@@ -132,7 +151,7 @@ export default function MasteryPage() {
                 </div>
             )}
 
-            {/* VUE : METHODOLOGIE (PHILO/LETTRES) */}
+            {/* VUE : METHODOLOGIE */}
             {currentStep.type === 'method' && (
                 <div className="animate-in fade-in slide-in-from-right-8">
                     <div className="bg-yellow-50 border-2 border-yellow-100 p-8 rounded-[2.5rem] mb-8">

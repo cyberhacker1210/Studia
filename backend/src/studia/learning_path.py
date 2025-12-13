@@ -102,25 +102,28 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
 
     safe_text = course_text[:25000]
 
-    # Sélection Stratégique
-    if subject in ["Mathématiques", "NSI"]:
+    # Sélection de la stratégie
+    if subject == "Mathématiques" or subject == "NSI":
         schema = MathPath
-        prompt = "Tu es un prof de Maths. Rigueur absolue."
-    elif subject in ["Histoire-Géo", "HGGSP", "Géopolitique"]:
+        prompt = "Tu es un prof de Maths d'élite. Rigueur absolue."
+    elif subject == "Histoire-Géo" or subject == "HGGSP":
         schema = HistoryPath
-        prompt = "Tu es un prof d'Histoire. Le PLAN est crucial."
-    elif subject in ["Philosophie", "HLP", "Français", "Littérature"]:
+        # ✅ MODIFICATION ICI : Consigne explicite pour le plan
+        prompt = "Tu es un prof d'Histoire. Pour l'étape de structure, ne garde que les GRANDS TITRES (I, II, III) et les SOUS-PARTIES MAJEURES (A, B). Ignore les détails. Le plan doit être synthétique."
+    elif subject == "Philosophie" or subject == "HLP":
         schema = PhilosophyPath
-        prompt = "Tu es un prof de Lettres. Structure de la pensée."
-    elif subject in ["SVT", "Physique-Chimie"]:
+        # ✅ MODIFICATION ICI
+        prompt = "Tu es un prof de Philo. Pour l'étape de structure, concentre-toi sur l'enchaînement logique principal (Thèse, Antithèse, Synthèse). Pas de sous-sous-parties."
+    elif subject == "SVT" or subject == "Physique-Chimie":
         schema = SVTPath
-        prompt = "Tu es un prof de Sciences."
-    elif subject in ["Anglais", "Espagnol", "Allemand"]:
+        prompt = "Tu es un prof de Sciences. Mots-clés et démarche scientifique."
+    elif subject in ["Anglais", "Espagnol", "Allemand", "Français"]:
         schema = LanguagePath
-        prompt = "Tu es un prof de Langues."
+        prompt = "Tu es un prof de Langues. Vocabulaire riche et Grammaire."
     else:
         schema = GeneralPath
-        prompt = "Tu es un pédagogue expert."
+        # ✅ MODIFICATION ICI
+        prompt = "Tu es un pédagogue expert. Pour le plan, reste sur les grandes lignes directrices."
 
     try:
         completion = client.beta.chat.completions.parse(
@@ -134,23 +137,42 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
 
         raw_data = completion.choices[0].message.parsed.model_dump()
 
-        # Transformation
+        # --- DÉTECTION INTELLIGENTE DES ÉTAPES (Inchangée) ---
         steps = []
         for key, value in raw_data.items():
             step_type = "unknown"
 
-            # Détection intelligente
-            if "items" in value and isinstance(value["items"], list):
-                step_type = "structure"
-            elif "content_markdown" in value:
+            # 1. Détection par contenu
+            if "content_markdown" in value:
                 step_type = "learn"
             elif "flashcards" in value:
                 step_type = "flashcards"
-                if not value["flashcards"]: value["flashcards"] = [{"front": "Erreur", "back": "Vide"}]
+                if not value["flashcards"]:
+                    value["flashcards"] = [{"front": "Erreur", "back": "Aucune carte générée."}]
             elif "questions" in value:
                 step_type = "quiz"
             elif "tips_markdown" in value:
                 step_type = "method"
+            elif "items" in value and isinstance(value["items"], list):  # Structure
+                step_type = "structure"
+                # ✅ FILTRAGE POST-GÉNÉRATION (Sécurité supplémentaire)
+                # On ne garde que les niveaux 1 et 2 pour être sûr
+                value["items"] = [item for item in value["items"] if item["level"] <= 2]
+
+            # 2. Fallback par nom de clé
+            if step_type == "unknown":
+                if "theorems" in key or "context" in key or "learn" in key or "mechanism" in key or "grammar" in key or "authors" in key:
+                    step_type = "learn"
+                elif "formulas" in key or "chronology" in key or "memorize" in key or "keywords" in key or "idioms" in key or "concepts" in key:
+                    step_type = "flashcards"
+                elif "quiz" in key or "check" in key or "logic" in key or "validation" in key:
+                    step_type = "quiz"
+                elif "method" in key:
+                    step_type = "method"
+                elif "structure" in key:
+                    step_type = "structure"
+
+            print(f"👉 Étape détectée : {key} -> {step_type}")
 
             steps.append({
                 "type": step_type,
@@ -163,7 +185,6 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
     except Exception as e:
         print(f"❌ Erreur IA: {e}")
         return {"steps": []}
-
 
 # --- FONCTIONS ADAPTATIVES ---
 # ... (Modèles adaptatifs inchangés - QuizQuestionAdaptive, etc.)

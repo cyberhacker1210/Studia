@@ -21,24 +21,24 @@ export function xpForNextLevel(currentLevel: number): number {
 
 export async function addXp(userId: string, amount: number, action: string) {
   try {
-    // 1. On récupère l'XP actuel (si l'user existe)
+    // 1. Récupérer l'XP actuel
     const { data: user } = await supabase
       .from('users')
       .select('xp, level')
       .eq('id', userId)
       .single();
 
-    // 2. Calcul des nouvelles valeurs
+    // 2. Calculer le nouveau niveau
     const currentXp = user?.xp || 0;
     const newXp = currentXp + amount;
     const newLevel = calculateLevel(newXp);
     const leveledUp = newLevel > (user?.level || 1);
 
-    // 3. Mise à jour ou Création (Upsert) pour être sûr à 100%
+    // 3. Sauvegarder
     const { error } = await supabase
       .from('users')
       .upsert({
-        id: userId, // Clé primaire
+        id: userId,
         xp: newXp,
         level: newLevel,
         last_study_date: new Date().toISOString()
@@ -49,12 +49,14 @@ export async function addXp(userId: string, amount: number, action: string) {
       return { success: false };
     }
 
-    // 4. Notifier l'interface
+    // 4. Notifier l'interface en temps réel
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('xp-updated'));
+
+      // Petit effet sonore ou log si Level Up
       if (leveledUp) {
-        // On peut ajouter une alerte ici plus tard
-        console.log("🆙 LEVEL UP!");
+        console.log("🆙 LEVEL UP!", newLevel);
+        // Ici on pourrait déclencher un confetti spécial
       }
     }
 
@@ -82,10 +84,14 @@ export async function getUserProgress(userId: string): Promise<UserProgress | nu
   const nextLevelXp = xpForNextLevel(currentLevel);
   const currentLevelBaseXp = xpForNextLevel(currentLevel - 1);
 
+  // Calcul du % d'avancement dans le niveau actuel
   const xpInLevel = (user.xp || 0) - currentLevelBaseXp;
   const xpNeededForLevel = nextLevelXp - currentLevelBaseXp;
 
-  const progress_percent = Math.min(100, Math.max(0, (xpInLevel / xpNeededForLevel) * 100));
+  // Sécurité division par zéro
+  const progress_percent = xpNeededForLevel > 0
+    ? Math.min(100, Math.max(0, (xpInLevel / xpNeededForLevel) * 100))
+    : 0;
 
   return {
     xp: user.xp || 0,
