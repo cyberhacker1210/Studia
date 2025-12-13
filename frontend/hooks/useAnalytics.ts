@@ -8,12 +8,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export function useAnalytics() {
   const pathname = usePathname();
-  const { user, isLoaded } = useUser(); // On utilise isLoaded
+  const { user, isLoaded } = useUser();
   const startTime = useRef<number>(Date.now());
 
   // 1. Tracker les changements de page
   useEffect(() => {
-    // ✅ SÉCURITÉ : On attend que user ET isLoaded soient ok
     if (!isLoaded || !user || !user.id) return;
 
     const trackFeature = async () => {
@@ -26,31 +25,30 @@ export function useAnalytics() {
 
       if (feature) {
         const payload = {
-          user_id: user.id, // On est sûr que c'est une string ici
+          user_id: user.id,
           event_type: 'feature_use',
           event_data: { feature, path: pathname }
         };
 
-        // Envoi sécurisé
-        try {
-            if (navigator.sendBeacon) {
-                const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-                navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
-            } else {
-                fetch(`${API_URL}/api/analytics/track`, {
-                    method: 'POST',
-                    body: JSON.stringify(payload),
-                    headers: {'Content-Type': 'application/json'}
-                });
-            }
-        } catch (e) {
-            console.error("Analytics Error", e);
+        // Envoi sécurisé sans bloquer l'UI
+        if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+            navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
+        } else {
+            // Mode "no-cors" pour éviter les erreurs bloquantes dans la console
+            // (Note: on ne verra pas la réponse, mais ça envoie la requête)
+            fetch(`${API_URL}/api/analytics/track`, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                mode: 'no-cors',
+                headers: {'Content-Type': 'text/plain'}
+            }).catch(() => {});
         }
       }
     };
 
     trackFeature();
-  }, [pathname, user, isLoaded]); // Ajout de isLoaded
+  }, [pathname, user, isLoaded]);
 
   // 2. Tracker la durée
   useEffect(() => {
@@ -66,7 +64,9 @@ export function useAnalytics() {
       };
 
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
+      if (navigator.sendBeacon) {
+          navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
+      }
     };
 
     window.addEventListener('beforeunload', handleUnload);

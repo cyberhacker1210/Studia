@@ -7,15 +7,13 @@ import { Home, Plus, MessageSquare, Library, BarChart3, Brain, Layers } from 'lu
 import EnergyBadge from '@/components/workspace/EnergyBadge';
 import ReferralHandler from '@/components/workspace/ReferralHandler';
 import { useSupabaseUser } from '@/lib/useSupabaseUser';
-// ✅ IMPORT DU HOOK
 import { useAnalytics } from '@/hooks/useAnalytics';
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Initialisation des services
   useSupabaseUser();
-  useAnalytics(); // ✅ ACTIVE LE TRACKING ICI
+  useAnalytics();
 
   const NavItem = ({ href, icon: Icon, label }: any) => {
     const isActive = href === '/workspace' ? pathname === href : pathname?.startsWith(href);
@@ -73,9 +71,10 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-full relative min-w-0">
 
-          {/* MOBILE HEADER (Transparent Blur) */}
+          {/* MOBILE HEADER */}
           <header className="md:hidden h-16 flex items-center justify-between px-4 absolute top-0 left-0 w-full z-40 bg-white/80 backdrop-blur-md border-b border-slate-100/50">
               <div className="font-black text-xl flex items-center gap-2 text-slate-900 tracking-tight">
+                  <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center"><Brain size={16} /></div>
                   Studia.
               </div>
               <div className="flex items-center gap-3">
@@ -91,7 +90,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
               </div>
           </main>
 
-          {/* MOBILE FAB (Floating Action Button - Twitter Style) */}
+          {/* MOBILE FAB (Bouton Flottant) */}
           <Link
             href="/workspace/capture"
             className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center z-50 active:scale-90 transition-transform hover:shadow-blue-500/20"
@@ -99,11 +98,11 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
             <Plus size={28} strokeWidth={3} />
           </Link>
 
-          {/* MOBILE BOTTOM NAV (iOS Style) */}
-          <nav className="md:hidden h-[80px] bg-white border-t border-slate-100 fixed bottom-0 w-full z-40 pb-safe px-2 grid grid-cols-4 items-center justify-items-center shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+          {/* ✅ MOBILE BOTTOM NAV (Type App Native) */}
+          <nav className="md:hidden fixed bottom-0 w-full z-50 bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-[env(safe-area-inset-bottom)] pt-2 px-6 grid grid-cols-4 items-center justify-items-center shadow-[0_-4px_20px_rgba(0,0,0,0.03)] transition-transform duration-300">
               <MobileNavItem href="/workspace" icon={Home} label="Accueil" />
               <MobileNavItem href="/workspace/courses" icon={Library} label="Cours" />
-              <MobileNavItem href="/workspace/flashcards" icon={Layers} label="Révision" />
+              <MobileNavItem href="/workspace/flashcards" icon={Layers} label="Réviser" />
               <MobileNavItem href="/workspace/chat" icon={MessageSquare} label="Tuteur" />
           </nav>
       </div>
