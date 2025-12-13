@@ -122,18 +122,35 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
 
         raw_data = completion.choices[0].message.parsed.model_dump()
 
-        # Transformation en liste d'étapes standardisée pour le Frontend
+        # --- DÉTECTION INTELLIGENTE DES ÉTAPES ---
         steps = []
         for key, value in raw_data.items():
             step_type = "unknown"
-            if "theorems" in key or "context" in key or "learn" in key or "mechanism" in key or "grammar" in key or "authors" in key:
+
+            # 1. Détection par contenu (Plus fiable)
+            if "content_markdown" in value:
                 step_type = "learn"
-            elif "formulas" in key or "chronology" in key or "memorize" in key or "keywords" in key or "idioms" in key or "concepts" in key:
+            elif "flashcards" in value:
                 step_type = "flashcards"
-            elif "quiz" in key or "check" in key or "logic" in key or "validation" in key:
+                if not value["flashcards"]:  # Sécurité
+                    value["flashcards"] = [{"front": "Erreur", "back": "Aucune carte générée."}]
+            elif "questions" in value:
                 step_type = "quiz"
-            elif "method" in key:
+            elif "tips_markdown" in value:
                 step_type = "method"
+
+            # 2. Fallback par nom de clé (Au cas où)
+            if step_type == "unknown":
+                if "theorems" in key or "context" in key or "learn" in key or "mechanism" in key or "grammar" in key or "authors" in key:
+                    step_type = "learn"
+                elif "formulas" in key or "chronology" in key or "memorize" in key or "keywords" in key or "idioms" in key or "concepts" in key:
+                    step_type = "flashcards"
+                elif "quiz" in key or "check" in key or "logic" in key or "validation" in key:
+                    step_type = "quiz"
+                elif "method" in key:
+                    step_type = "method"
+
+            print(f"👉 Étape détectée : {key} -> {step_type}")
 
             steps.append({
                 "type": step_type,
@@ -148,8 +165,7 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
         return {"steps": []}
 
 
-# --- FONCTIONS ADAPTATIVES (Inchangées) ---
-# Nécessaires pour que main.py ne plante pas à l'import
+# --- FONCTIONS ADAPTATIVES (Inchangées mais nécessaires) ---
 
 class QuizQuestionAdaptive(BaseModel):
     question: str;
