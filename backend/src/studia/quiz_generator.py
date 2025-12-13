@@ -16,20 +16,17 @@ client = OpenAI(api_key=api_key)
 
 def extract_text(image_base64: str) -> str:
     """
-    🔄 STEP 1: Extract text from image using GPT-4 Vision
+    Extract text using GPT-4 Vision with STRUCTURAL formatting.
     """
+    prompt = """Extract ALL the text from this image.
 
-    prompt = """Extract ALL the text from this image with maximum accuracy.
-
-RULES:
-- Extract EVERYTHING: titles, paragraphs, lists, formulas, tables, diagrams labels
-- Preserve the structure (use line breaks and spacing)
-- Do NOT add any comments or explanations
-- If mathematical formulas, write them clearly
-- If tables, format them readably
-- If handwritten, do your best to transcribe accurately
-
-Return ONLY the extracted text, nothing else."""
+    CRITICAL FORMATTING RULES:
+    1. Organize the content using Markdown Headers (# for Main Title, ## for Sections, ### for Sub-sections).
+    2. Use bullet points (-) for lists.
+    3. Use bold (**text**) for key concepts.
+    4. If there are formulas, use LaTeX format.
+    5. Do not summarize, keep the full content but STRUCTURE IT clearly for reading.
+    """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -37,25 +34,13 @@ Return ONLY the extracted text, nothing else."""
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_base64}"
-                        },
-                    },
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
                 ],
             }
         ],
     )
-
-    extracted_text = response.choices[0].message.content
-    print(f"✅ Text extracted: {len(extracted_text)} characters")
-    return extracted_text
-
+    return response.choices[0].message.content
 
 def verify_and_refine_extraction(image_base64: str, extracted_text: str) -> dict:
     """
