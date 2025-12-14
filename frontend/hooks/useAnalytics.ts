@@ -11,65 +11,62 @@ export function useAnalytics() {
   const { user, isLoaded } = useUser();
   const startTime = useRef<number>(Date.now());
 
-  // 1. Tracker les changements de page
-  useEffect(() => {
-    if (!isLoaded || !user || !user.id) return;
+  // Helper pour envoyer les données proprement
+  const sendEvent = (eventType: string, eventData: any) => {
+      // 🛡️ SÉCURITÉ : Si pas d'ID, on n'envoie rien
+      if (!user?.id) return;
 
-    const trackFeature = async () => {
-      let feature = null;
-      if (pathname.includes('/quiz')) feature = 'Quiz';
-      else if (pathname.includes('/flashcards')) feature = 'Flashcards';
-      else if (pathname.includes('/capture')) feature = 'Capture';
-      else if (pathname.includes('/mastery')) feature = 'Parcours';
-      else if (pathname === '/workspace') feature = 'Dashboard';
-
-      if (feature) {
-        const payload = {
+      const payload = {
           user_id: user.id,
-          event_type: 'feature_use',
-          event_data: { feature, path: pathname }
-        };
+          event_type: eventType,
+          // 🛡️ SÉCURITÉ : On s'assure que event_data est un objet valide
+          event_data: eventData || {}
+      };
 
-        // Envoi sécurisé sans bloquer l'UI
-        if (navigator.sendBeacon) {
-            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-            navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
-        } else {
-            // Mode "no-cors" pour éviter les erreurs bloquantes dans la console
-            // (Note: on ne verra pas la réponse, mais ça envoie la requête)
-            fetch(`${API_URL}/api/analytics/track`, {
-                method: 'POST',
-                body: JSON.stringify(payload),
-                mode: 'no-cors',
-                headers: {'Content-Type': 'text/plain'}
-            }).catch(() => {});
-        }
+      try {
+          const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+
+          if (navigator.sendBeacon) {
+              navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
+          } else {
+              fetch(`${API_URL}/api/analytics/track`, {
+                  method: 'POST',
+                  body: JSON.stringify(payload),
+                  headers: {'Content-Type': 'application/json'},
+                  keepalive: true
+              }).catch(() => {});
+          }
+      } catch (e) {
+          console.error("Analytics Error", e);
       }
-    };
+  };
 
-    trackFeature();
-  }, [pathname, user, isLoaded]);
-
-  // 2. Tracker la durée
+  // 1. Tracker la navigation
   useEffect(() => {
-    if (!isLoaded || !user || !user.id) return;
+    if (!isLoaded || !user) return;
+
+    let feature = null;
+    if (pathname.includes('/quiz')) feature = 'Quiz';
+    else if (pathname.includes('/flashcards')) feature = 'Flashcards';
+    else if (pathname.includes('/capture')) feature = 'Capture';
+    else if (pathname.includes('/mastery')) feature = 'Parcours';
+    else if (pathname === '/workspace') feature = 'Dashboard';
+
+    if (feature) {
+      sendEvent('feature_use', { feature, path: pathname });
+    }
+  }, [pathname, isLoaded, user?.id]); // On dépend de user.id, pas de l'objet user entier
+
+  // 2. Tracker la fin de session
+  useEffect(() => {
+    if (!isLoaded || !user) return;
 
     const handleUnload = () => {
       const duration = Math.round((Date.now() - startTime.current) / 1000);
-
-      const payload = {
-        user_id: user.id,
-        event_type: 'session_end',
-        event_data: { duration_seconds: duration }
-      };
-
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      if (navigator.sendBeacon) {
-          navigator.sendBeacon(`${API_URL}/api/analytics/track`, blob);
-      }
+      sendEvent('session_end', { duration_seconds: duration });
     };
 
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [user, isLoaded]);
+  }, [isLoaded, user?.id]);
 }
