@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, Check, X, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, Check, X, AlertCircle, ArrowLeftRight, Languages } from 'lucide-react'; // Ajout icônes
 import { Flashcard } from '@/lib/flashcardService';
 import { useUser } from '@clerk/nextjs';
 import { addXp } from '@/lib/gamificationService';
@@ -9,19 +9,17 @@ import { addXp } from '@/lib/gamificationService';
 interface FlashcardViewerProps {
   flashcards: Flashcard[];
   onProgress?: (cardIndex: number, remembered: boolean) => void;
+  mode?: 'standard' | 'vocabulary'; // Nouveau mode
 }
 
-export default function FlashcardViewer({ flashcards, onProgress }: FlashcardViewerProps) {
+export default function FlashcardViewer({ flashcards, onProgress, mode = 'standard' }: FlashcardViewerProps) {
   const { user } = useUser();
 
-  // 🛡️ SÉCURITÉ ANTI-CRASH
-  // Si les données sont corrompues ou vides, on affiche un message au lieu de planter
   if (!flashcards || !Array.isArray(flashcards) || flashcards.length === 0) {
     return (
       <div className="p-10 text-center border-2 border-slate-100 rounded-[2.5rem] bg-slate-50 flex flex-col items-center justify-center gap-4">
         <AlertCircle className="text-slate-400" size={32} />
-        <p className="font-bold text-slate-500 text-lg">Aucune flashcard disponible.</p>
-        <p className="text-sm text-slate-400">L'IA n'a pas pu générer de cartes pour cette section.</p>
+        <p className="font-bold text-slate-500 text-lg">Aucune carte disponible.</p>
       </div>
     );
   }
@@ -29,18 +27,20 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   // --- State ---
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isReversed, setIsReversed] = useState(false); // ✅ État Inversion
   const [knownCount, setKnownCount] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [finished, setFinished] = useState(false);
   const [cardsToReview, setCardsToReview] = useState<Flashcard[]>([]);
   const [activeDeck, setActiveDeck] = useState<Flashcard[]>(flashcards);
-  const [mode, setMode] = useState<'normal' | 'review'>('normal');
 
   const hasAddedXp = useRef(false);
-
-  // Sécurité supplémentaire pour l'accès à l'index
   const currentCard = activeDeck[currentIndex] || { front: "Erreur", back: "Carte introuvable" };
   const progress = Math.round(((currentIndex) / activeDeck.length) * 100);
+
+  // Logique d'affichage selon le sens
+  const displayFront = isReversed ? currentCard.back : currentCard.front;
+  const displayBack = isReversed ? currentCard.front : currentCard.back;
 
   const handleResponse = (known: boolean) => {
     if (known) {
@@ -71,7 +71,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   }, [finished, user, knownCount]);
 
   const startReviewMode = () => {
-      setMode('review');
       setActiveDeck(cardsToReview);
       setCardsToReview([]);
       setCurrentIndex(0);
@@ -83,7 +82,6 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   };
 
   const resetAll = () => {
-      setMode('normal');
       setActiveDeck(flashcards);
       setCardsToReview([]);
       setCurrentIndex(0);
@@ -94,13 +92,11 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
       hasAddedXp.current = false;
   };
 
-  // Écran de Fin
   if (finished) {
     return (
       <div className="text-center py-16 bg-white border-2 border-slate-100 rounded-[2.5rem] shadow-sm animate-in zoom-in-95 px-6 max-w-2xl mx-auto">
         <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-sm">🎉</div>
         <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Session terminée !</h2>
-
         <div className="flex justify-center gap-8 mb-8 mt-8">
           <div className="text-center p-5 bg-green-50 rounded-2xl border border-green-100 min-w-[110px]">
             <div className="text-4xl font-black text-green-600">{knownCount}</div>
@@ -111,22 +107,14 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
             <div className="text-xs font-bold text-orange-800 uppercase mt-1">À revoir</div>
           </div>
         </div>
-
         <div className="space-y-4 max-w-xs mx-auto">
             {cardsToReview.length > 0 && (
-                <button
-                    onClick={startReviewMode}
-                    className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold shadow-lg hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                    <RotateCcw size={18} /> Réviser les {cardsToReview.length} erreurs
+                <button onClick={startReviewMode} className="w-full py-4 rounded-2xl bg-orange-500 text-white font-bold shadow-lg hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <RotateCcw size={18} /> Réviser les erreurs
                 </button>
             )}
-
-            <button
-                onClick={resetAll}
-                className={`w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${cardsToReview.length > 0 ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'btn-b-primary'}`}
-            >
-                <RotateCcw size={18} /> Recommencer tout
+            <button onClick={resetAll} className={`w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${cardsToReview.length > 0 ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'btn-b-primary'}`}>
+                <RotateCcw size={18} /> Recommencer
             </button>
         </div>
       </div>
@@ -136,26 +124,35 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
   return (
     <div className="max-w-xl mx-auto perspective-1000 pb-24 md:pb-0">
 
-      {/* Barre de Progression (Avec plus de marge en bas) */}
-      <div className="flex items-center gap-4 mb-10">
+      {/* Barre d'outils (Progression + Options) */}
+      <div className="flex items-center justify-between gap-4 mb-8">
         <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
            <div className="h-full bg-slate-900 transition-all duration-300" style={{width: `${progress}%`}} />
         </div>
-        <span className="text-xs font-bold text-slate-400">
-            {mode === 'review' ? 'Révision' : 'Carte'} {currentIndex + 1} / {activeDeck.length}
-        </span>
+
+        {/* Bouton Inversion */}
+        <button
+            onClick={() => setIsReversed(!isReversed)}
+            className={`p-2 rounded-xl transition-all border-2 ${isReversed ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'}`}
+            title="Inverser le sens (Recto/Verso)"
+        >
+            <ArrowLeftRight size={18} />
+        </button>
       </div>
 
-      {/* CARTE : Hauteur augmentée sur Desktop (md:h-[28rem]) */}
+      {/* CARTE */}
       <div
-        className={`relative w-full h-[55vh] sm:h-96 md:h-[28rem] cursor-pointer group transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}
+        className={`relative w-full h-[50vh] sm:h-96 cursor-pointer group transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}
         onClick={() => setIsFlipped(!isFlipped)}
       >
         {/* RECTO */}
         <div className="absolute w-full h-full backface-hidden bg-white border-2 border-slate-200 rounded-[2.5rem] shadow-lg hover:shadow-xl transition-all flex flex-col items-center justify-center p-8 md:p-12 text-center overflow-hidden">
-           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Question</span>
-           <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 overflow-y-auto max-h-[70%] w-full scrollbar-hide leading-tight">
-             {currentCard.front}
+           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8 flex items-center gap-2">
+               {mode === 'vocabulary' && <Languages size={14}/>}
+               {isReversed ? 'Réponse' : 'Question'}
+           </span>
+           <h3 className="text-2xl md:text-4xl font-extrabold text-slate-900 overflow-y-auto max-h-[70%] w-full scrollbar-hide leading-tight">
+             {displayFront}
            </h3>
            <div className="absolute bottom-8 text-slate-400 text-xs font-bold opacity-50 md:opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
              Appuyez pour retourner ↻
@@ -164,25 +161,21 @@ export default function FlashcardViewer({ flashcards, onProgress }: FlashcardVie
 
         {/* VERSO */}
         <div className="absolute w-full h-full backface-hidden rotate-y-180 bg-slate-900 rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center p-8 md:p-12 text-center text-white overflow-hidden">
-           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-8">Réponse</span>
-           <p className="text-lg md:text-xl font-medium leading-relaxed overflow-y-auto max-h-[80%] w-full scrollbar-hide">
-             {currentCard.back}
+           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-8">
+               {isReversed ? 'Question' : 'Réponse'}
+           </span>
+           <p className="text-lg md:text-2xl font-medium leading-relaxed overflow-y-auto max-h-[80%] w-full scrollbar-hide">
+             {displayBack}
            </p>
         </div>
       </div>
 
-      {/* BOUTONS : Espace augmenté sur PC (md:mt-10) */}
+      {/* BOUTONS ACTIONS */}
       <div className={`fixed bottom-20 left-0 w-full p-4 bg-white border-t border-slate-100 md:static md:bg-transparent md:border-0 md:p-0 md:mt-10 z-30 flex gap-4 transition-opacity duration-300 ${isFlipped ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <button
-          onClick={() => handleResponse(false)}
-          className="flex-1 btn-b-secondary border-red-200 text-red-600 hover:bg-red-50 py-4 text-base shadow-sm"
-        >
+        <button onClick={() => handleResponse(false)} className="flex-1 btn-b-secondary border-red-200 text-red-600 hover:bg-red-50 py-4 text-base shadow-sm">
           <X size={20} /> Pas encore
         </button>
-        <button
-          onClick={() => handleResponse(true)}
-          className="flex-1 btn-b-primary bg-green-600 border-green-800 hover:bg-green-500 py-4 text-base shadow-lg"
-        >
+        <button onClick={() => handleResponse(true)} className="flex-1 btn-b-primary bg-green-600 border-green-800 hover:bg-green-500 py-4 text-base shadow-lg">
           <Check size={20} /> Je savais
         </button>
       </div>

@@ -11,18 +11,18 @@ const inter = Inter({
   display: 'swap',
 });
 
-// ✅ CONFIGURATION MOBILE OPTIMISÉE
+// Configuration Mobile
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // Empêche le zoom (sensation native)
+  userScalable: false,
   themeColor: "#ffffff",
 };
 
 export const metadata: Metadata = {
   title: "Studia",
-  description: "Apprenez mieux, pas plus dur.",
+  description: "L'IA qui booste tes résultats scolaires.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -56,11 +56,28 @@ export default function RootLayout({
             `}
           </Script>
         </head>
-        {/* overscroll-none pour éviter l'effet élastique sur iOS */}
         <body className="min-h-screen flex flex-col bg-slate-50 selection:bg-slate-900 selection:text-white overscroll-none touch-pan-y">
           <LanguageProvider>
             {children}
           </LanguageProvider>
+
+          {/* ✅ SERVICE WORKER REGISTRATION */}
+          <Script id="register-sw" strategy="afterInteractive">
+            {`
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(
+                    function(registration) {
+                      console.log('SW registered: ', registration.scope);
+                    },
+                    function(err) {
+                      console.log('SW registration failed: ', err);
+                    }
+                  );
+                });
+              }
+            `}
+          </Script>
         </body>
       </html>
     </ClerkProvider>
