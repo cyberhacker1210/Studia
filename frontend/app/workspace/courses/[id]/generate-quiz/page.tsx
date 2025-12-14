@@ -5,7 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { getCourseById, Course } from '@/lib/courseService';
 import { generateQuizFromText, Quiz } from '@/lib/api';
-import { ArrowLeft, Loader2, Brain, Zap, Settings, FileText, Save, CheckCircle, BarChart3, Clock, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft, Loader2, Brain, Zap, Settings, FileText,
+  Save, CheckCircle, BarChart3, Clock, Sparkles, X
+} from 'lucide-react';
 import QuizDisplay from '@/components/workspace/QuizDisplay';
 import QuizResults from '@/components/workspace/QuizResults';
 import { useEnergy } from '@/hooks/useEnergy';
