@@ -15,20 +15,19 @@ from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text,
 from .flashcard_generator import generate_flashcards
 from .learning_path import *
 from .admin import router as admin_router
+# ✅ IMPORT NOTIFICATIONS
+from .notifications import router as notif_router
 
-app = FastAPI(title="Studia API", version="2.7.1")
+app = FastAPI(title="Studia API", version="2.8.0")
 
 LEMON_WEBHOOK_SECRET = os.getenv("LEMON_WEBHOOK_SECRET")
 
-# ✅ CONFIGURATION CORS CORRIGÉE
-# allow_origin_regex permet d'accepter toutes les origines (http/https)
-# tout en renvoyant l'en-tête spécifique nécessaire pour 'credentials: include'
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex="https?://.*",
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "x-admin-password", "content-type", "authorization"],
 )
 
 # --- MODELS ---
@@ -42,7 +41,6 @@ class FlashcardGenerateRequest(BaseModel): course_text: str; num_cards: int = 10
 class Flashcard(BaseModel): front: str; back: str; category: Optional[str] = "Général"; difficulty: Optional[str] = "medium"
 class FlashcardResponse(BaseModel): id: str; flashcards: List[Flashcard]; createdAt: str
 
-# Parcours Adaptatif
 class CourseRequest(BaseModel): course_text: str
 class RemediationRequest(BaseModel): course_text: str; weak_concepts: List[str]; difficulty: int
 class ValidationRequest(BaseModel): course_text: str; concepts: List[str]; difficulty: int
@@ -58,7 +56,7 @@ class MasteryRequest(BaseModel): course_text: str; subject: str = "Général"
 # --- ENDPOINTS ---
 
 @app.get("/")
-def root(): return {"status": "online", "version": "2.7.1"}
+def root(): return {"status": "online", "version": "2.8.0"}
 
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
 async def extract_text_endpoint(request: ExtractTextRequest):
@@ -99,47 +97,34 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/path/diagnostic")
-async def diagnostic_endpoint(req: CourseRequest):
-    try: return generate_diagnostic_quiz(req.course_text)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def diagnostic_endpoint(req: CourseRequest): return generate_diagnostic_quiz(req.course_text)
 
 @app.post("/api/path/remediation")
-async def remediation_endpoint(req: RemediationRequest):
-    try: return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def remediation_endpoint(req: RemediationRequest): return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
 
 @app.post("/api/path/validation")
-async def validation_endpoint(req: ValidationRequest):
-    try: return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def validation_endpoint(req: ValidationRequest): return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
 
 @app.post("/api/path/practice")
-async def practice_endpoint(req: PracticeRequest):
-    try: return generate_practice_exercise(req.course_text, req.difficulty)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def practice_endpoint(req: PracticeRequest): return generate_practice_exercise(req.course_text, req.difficulty)
 
 @app.post("/api/path/evaluate", response_model=EvaluateResponse)
-async def evaluate_answer_endpoint(req: EvalRequest):
-    try: return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def evaluate_answer_endpoint(req: EvalRequest): return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
 
 @app.post("/api/motivation/generate", response_model=MotivationResponse)
-async def motivation_endpoint(request: MotivationRequest):
-    try: return generate_daily_plan(request.goal, request.deadline, request.current_xp)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+async def motivation_endpoint(request: MotivationRequest): return generate_daily_plan(request.goal, request.deadline, request.current_xp)
 
 @app.post("/api/chat/tutor", response_model=ChatResponse)
 async def chat_tutor_endpoint(request: ChatRequest):
-    try:
-        reply = chat_with_tutor(request.history, request.course_context, request.message)
-        return ChatResponse(reply=reply)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    return ChatResponse(reply=chat_with_tutor(request.history, request.course_context, request.message))
 
 @app.post("/api/path/generate")
 async def path_generate_endpoint(request: MasteryRequest):
     return generate_mastery_path(request.course_text, request.subject)
 
 app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
+# ✅ ROUTE NOTIFICATIONS
+app.include_router(notif_router, prefix="/api/notifications", tags=["Notifications"])
 
 @app.post("/api/webhook/lemon")
 async def lemon_webhook(request: Request):

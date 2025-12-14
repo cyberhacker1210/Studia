@@ -9,8 +9,8 @@ import { saveFlashcardDeck } from '@/lib/flashcardService';
 import { ArrowLeft, Loader2, Check, Brain, Zap } from 'lucide-react';
 import FlashcardViewer from '@/components/workspace/FlashcardViewer';
 import { Flashcard } from '@/lib/flashcardService';
-// 👇 Import du Hook Énergie
 import { useEnergy } from '@/hooks/useEnergy';
+import { PWAService } from '@/lib/pwaService'; // ✅ IMPORT
 
 type Step = 'config' | 'generating' | 'reviewing' | 'saved';
 
@@ -18,8 +18,6 @@ export default function GenerateFlashcardsPage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoaded } = useUser();
-
-  // 👇 Initialisation Hook
   const { consumeEnergy, isPremium } = useEnergy();
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -51,12 +49,9 @@ export default function GenerateFlashcardsPage() {
   const handleGenerate = async () => {
     if (!course || !user) return;
 
-    // 🛑 VÉRIFICATION ÉNERGIE (Coût: 1)
     const canProceed = await consumeEnergy(1);
     if (!canProceed) {
-        if(confirm("⚡️ Énergie épuisée.\n\nPassez Premium pour générer des flashcards en illimité.")) {
-            router.push('/workspace/pricing');
-        }
+        router.push('/workspace/pricing');
         return;
     }
 
@@ -65,7 +60,12 @@ export default function GenerateFlashcardsPage() {
       setError(null);
       const result = await generateFlashcards(course.extracted_text, numCards, difficulty);
       setFlashcards(result.flashcards);
+
       const deck = await saveFlashcardDeck(user.id, result.flashcards, `Flashcards - ${course.title}`, difficulty, course.id);
+
+      // ✅ SAUVEGARDE LOCALE
+      await PWAService.saveFlashcardsOffline(deck);
+
       setDeckId(deck.id);
       setStep('reviewing');
     } catch (err: any) {
@@ -91,12 +91,8 @@ export default function GenerateFlashcardsPage() {
       <div className="max-w-3xl mx-auto">
 
         {step !== 'saved' && (
-          <button
-            onClick={() => router.push(`/workspace/courses/${params.id}`)}
-            className="flex items-center text-slate-500 hover:text-slate-900 mb-8 transition-colors font-medium text-sm"
-          >
-            <ArrowLeft size={16} className="mr-2" />
-            Retour au cours
+          <button onClick={() => router.push(`/workspace/courses/${params.id}`)} className="flex items-center text-slate-500 hover:text-slate-900 mb-8 transition-colors font-medium text-sm">
+            <ArrowLeft size={16} className="mr-2" /> Retour
           </button>
         )}
 
@@ -107,94 +103,45 @@ export default function GenerateFlashcardsPage() {
 
         {step === 'config' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-
             <div className="bg-white border-2 border-slate-200 p-8 rounded-[2rem] shadow-sm">
               <div className="flex justify-between items-center mb-6">
-                <label className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Zap size={20} className="text-yellow-500" />
-                    Quantité
-                </label>
-                <span className="text-2xl font-bold text-slate-900">{numCards} <span className="text-sm text-slate-400 font-medium">cartes</span></span>
+                <label className="text-lg font-bold text-slate-900 flex items-center gap-2"><Zap size={20} className="text-yellow-500" /> Quantité</label>
+                <span className="text-2xl font-bold text-slate-900">{numCards}</span>
               </div>
-              <input
-                type="range"
-                min="5"
-                max="20"
-                value={numCards}
-                onChange={(e) => setNumCards(Number(e.target.value))}
-                className="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-slate-900 hover:accent-blue-600 transition-colors"
-              />
-              <div className="flex justify-between text-xs font-bold text-slate-400 mt-3 uppercase tracking-wider">
-                <span>Rapide (5)</span>
-                <span>Complet (20)</span>
-              </div>
+              <input type="range" min="5" max="20" value={numCards} onChange={(e) => setNumCards(Number(e.target.value))} className="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-slate-900" />
             </div>
 
             <div className="bg-white border-2 border-slate-200 p-8 rounded-[2rem] shadow-sm">
-              <label className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6">
-                <Brain size={20} className="text-blue-500" />
-                Niveau de complexité
-              </label>
+              <label className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6"><Brain size={20} className="text-blue-500" /> Difficulté</label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                    { id: 'easy', label: 'Basique', icon: '🌱', desc: 'Concepts simples' },
-                    { id: 'medium', label: 'Standard', icon: '🎯', desc: 'Équilibre parfait' },
-                    { id: 'hard', label: 'Expert', icon: '🔥', desc: 'Détails pointus' }
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setDifficulty(item.id as any)}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
-                      difficulty === item.id
-                        ? 'border-slate-900 bg-slate-50 shadow-none'
-                        : 'border-slate-100 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="text-2xl mb-2">{item.icon}</div>
-                    <div className={`font-bold ${difficulty === item.id ? 'text-slate-900' : 'text-slate-600'}`}>{item.label}</div>
-                    <div className="text-xs text-slate-400 mt-1">{item.desc}</div>
+                {[{ id: 'easy', label: 'Basique' }, { id: 'medium', label: 'Standard' }, { id: 'hard', label: 'Expert' }].map((item) => (
+                  <button key={item.id} onClick={() => setDifficulty(item.id as any)} className={`p-4 rounded-2xl border-2 transition-all ${difficulty === item.id ? 'border-slate-900 bg-slate-50' : 'border-slate-100 bg-white'}`}>
+                    <div className="font-bold text-slate-900">{item.label}</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <button
-              onClick={handleGenerate}
-              className="w-full btn-b-primary py-4 text-lg flex items-center justify-center gap-2"
-            >
-              <span>✨ Lancer la génération</span>
-              {/* COÛT ÉNERGIE */}
-              {!isPremium && <span className="text-xs bg-slate-800 text-yellow-400 px-2 py-1 rounded-full">-1 ⚡️</span>}
+            <button onClick={handleGenerate} className="w-full btn-b-primary py-4 text-lg flex items-center justify-center gap-2">
+              <span>✨ Lancer</span> {!isPremium && <span className="text-xs bg-slate-800 text-yellow-400 px-2 py-1 rounded-full">-1 ⚡️</span>}
             </button>
-
             {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium text-center">{error}</div>}
           </div>
         )}
 
         {step === 'generating' && (
           <div className="bg-white border border-slate-200 rounded-3xl p-16 text-center shadow-sm">
-            <div className="relative w-20 h-20 mx-auto mb-8">
-                <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-slate-900 rounded-full border-t-transparent animate-spin"></div>
-                <Brain className="absolute inset-0 m-auto text-slate-900" size={24}/>
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">Construction du deck...</h3>
-            <p className="text-slate-500">L'IA analyse {course.extracted_text.length} caractères de votre cours.</p>
+            <Loader2 className="animate-spin h-16 w-16 text-purple-600 mx-auto mb-6" />
+            <h3 className="text-2xl font-bold text-slate-900">Génération en cours...</h3>
           </div>
         )}
 
         {step === 'reviewing' && flashcards.length > 0 && (
           <div className="space-y-8 animate-in fade-in">
             <div className="bg-slate-900 text-white rounded-3xl p-8 flex items-center justify-between">
-                <div>
-                    <h3 className="text-xl font-bold mb-1">Deck Prêt !</h3>
-                    <p className="text-slate-400 text-sm">{flashcards.length} cartes générées.</p>
-                </div>
-                <button onClick={handleSaveAndExit} className="bg-white text-slate-900 px-6 py-2 rounded-full font-bold hover:bg-slate-100 transition-colors">
-                    Terminer
-                </button>
+                <h3 className="text-xl font-bold">Deck Prêt !</h3>
+                <button onClick={handleSaveAndExit} className="bg-white text-slate-900 px-6 py-2 rounded-full font-bold">Terminer</button>
             </div>
-
             <div className="bg-white rounded-[2.5rem] shadow-lg border border-slate-100 overflow-hidden">
               <FlashcardViewer flashcards={flashcards} />
             </div>
@@ -203,11 +150,8 @@ export default function GenerateFlashcardsPage() {
 
         {step === 'saved' && (
           <div className="flex flex-col items-center justify-center py-20 animate-in zoom-in duration-500">
-            <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
-              <Check size={48} strokeWidth={3} />
-            </div>
-            <h3 className="text-3xl font-bold text-slate-900 mb-2">C'est dans la poche !</h3>
-            <p className="text-slate-500">Redirection vers votre espace...</p>
+            <Check size={48} className="text-green-600 mb-6" />
+            <h3 className="text-3xl font-bold text-slate-900">C'est dans la poche !</h3>
           </div>
         )}
       </div>

@@ -9,6 +9,7 @@ import { extractTextFromMultipleImages } from '@/lib/api';
 import { addXp } from '@/lib/gamificationService';
 import MultiImageCapture from '@/components/workspace/MultiImageCapture';
 import { useEnergy } from '@/hooks/useEnergy';
+import { PWAService } from '@/lib/pwaService'; // ✅ IMPORT
 
 const SUBJECTS = [
   "Mathématiques", "Physique-Chimie", "SVT", "Histoire-Géo",
@@ -51,6 +52,9 @@ export default function CapturePage() {
 
       const result = await extractTextFromMultipleImages(selectedImages);
       const course = await saveCourse(user.id, result.extractedText, courseTitle, selectedSubject);
+
+      // ✅ SAUVEGARDE LOCALE AUTOMATIQUE
+      await PWAService.saveCourseOffline(course);
 
       await addXp(user.id, 50, 'Nouveau cours créé');
       setCourseId(course.id);
@@ -160,7 +164,7 @@ export default function CapturePage() {
                     <Check size={48} strokeWidth={4} />
                 </div>
                 <h1 className="text-4xl font-black text-slate-900 mb-4">Cours Prêt !</h1>
-                <p className="text-slate-500 mb-10">Prêt pour la révision active.</p>
+                <p className="text-slate-500 mb-10">Sauvegardé sur votre appareil.</p>
                 <button onClick={() => router.push(`/workspace/courses/${courseId}`)} className="btn-b-primary px-12 py-4 text-lg">
                     Accéder au cours
                 </button>

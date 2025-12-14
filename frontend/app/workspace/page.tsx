@@ -3,16 +3,18 @@
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Plus, Flame, ArrowRight, Book, Trophy, Calendar, Sparkles, Brain, Layers } from 'lucide-react';
+import { Plus, Flame, ArrowRight, Book, Trophy, Calendar, Sparkles, Brain, Layers, Bell } from 'lucide-react';
 import { getUserCourses, Course } from '@/lib/courseService';
 import ReferralWidget from '@/components/workspace/ReferralWidget';
 import StreakWidget from '@/components/workspace/StreakWidget';
 import { useEnergy } from '@/hooks/useEnergy';
 import { getUserProgress } from '@/lib/gamificationService';
+import { useNotifications } from '@/hooks/useNotifications'; // ✅ IMPORT
 
 export default function WorkspacePage() {
   const { user } = useUser();
   const { energy, isPremium } = useEnergy();
+  const { isSubscribed, subscribe } = useNotifications(); // ✅ HOOK
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [streakData, setStreakData] = useState({ streak: 0, activeToday: false });
@@ -43,11 +45,20 @@ export default function WorkspacePage() {
       {/* HEADER + STREAK */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-6">
         <div>
-          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">
-            Salut {user?.firstName} 👋
-          </h1>
+          <div className="flex items-center gap-3">
+              <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">
+                Salut {user?.firstName} 👋
+              </h1>
+              {/* ✅ BOUTON NOTIF */}
+              {!isSubscribed && (
+                  <button onClick={subscribe} className="bg-white border border-slate-200 p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
+                      <Bell size={20} />
+                  </button>
+              )}
+          </div>
           <p className="text-lg text-slate-500 font-medium">Prêt à exploser tes scores ?</p>
         </div>
+
         <div className="hidden lg:block w-80">
             <StreakWidget streak={streakData.streak} activeToday={streakData.activeToday} />
         </div>
@@ -57,7 +68,7 @@ export default function WorkspacePage() {
           <StreakWidget streak={streakData.streak} activeToday={streakData.activeToday} />
       </div>
 
-      {/* ✅ WIDGET PARRAINAGE (Visible dès que l'énergie baisse) */}
+      {/* WIDGET PARRAINAGE */}
       {!isPremium && energy <= 2 && (
           <div className="mb-10 animate-in slide-in-from-top-4">
             <ReferralWidget />

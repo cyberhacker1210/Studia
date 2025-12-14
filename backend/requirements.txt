@@ -6,3 +6,4 @@ pydantic
 httpx
 stripe
 supabase
+pywebpush
