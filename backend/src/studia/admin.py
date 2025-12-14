@@ -20,8 +20,24 @@ class AnalyticsEvent(BaseModel):
 
 @router.post("/track")
 async def track_event(event: AnalyticsEvent):
-    if not supabase: return {"status": "error"}
+    if not supabase:
+        return {"status": "error", "detail": "Database not configured"}
+
     try:
+        # ✅ CAS SPÉCIAL : INTÉRÊT PREMIUM
+        if event.event_type == 'premium_interest':
+            email = event.event_data.get('email')
+            if email:
+                # On utilise upsert pour éviter les doublons si le mec clique 10 fois
+                supabase.table('premium_interests').upsert({
+                    "user_id": event.user_id,
+                    "email": email,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }, on_conflict="user_id").execute()
+                print(f"🌟 Nouvel intérêt Premium: {email}")
+                return {"status": "ok", "saved": "premium"}
+
+        # CAS GÉNÉRAL (Analytics)
         supabase.table('analytics_events').insert({
             "user_id": event.user_id,
             "event_type": event.event_type,
@@ -29,9 +45,11 @@ async def track_event(event: AnalyticsEvent):
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
         return {"status": "ok"}
-    except Exception:
-        return {"status": "error"}
 
+    except Exception as e:
+        print(f"❌ Analytics Error: {e}")
+        # On ne renvoie pas d'erreur 500 pour ne pas casser le front, mais on loggue
+        return {"status": "error", "detail": str(e)}
 
 @router.get("/dashboard")
 async def get_admin_stats(x_admin_password: Optional[str] = Header(None)):

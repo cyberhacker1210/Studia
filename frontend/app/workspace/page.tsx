@@ -3,31 +3,27 @@
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Plus, ArrowRight, Book, Sparkles, Brain, Layers } from 'lucide-react';
+import { Plus, Flame, ArrowRight, Book, Trophy, Calendar, Sparkles, Brain, Layers } from 'lucide-react';
 import { getUserCourses, Course } from '@/lib/courseService';
 import ReferralWidget from '@/components/workspace/ReferralWidget';
-import StreakWidget from '@/components/workspace/StreakWidget'; // ✅ Import du widget
+import StreakWidget from '@/components/workspace/StreakWidget';
 import { useEnergy } from '@/hooks/useEnergy';
-import { getUserProgress } from '@/lib/gamificationService'; // ✅ Import du service
+import { getUserProgress } from '@/lib/gamificationService';
 
 export default function WorkspacePage() {
   const { user } = useUser();
   const { energy, isPremium } = useEnergy();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // État pour la série (Streak)
   const [streakData, setStreakData] = useState({ streak: 0, activeToday: false });
 
   useEffect(() => {
     if (user) {
-      // 1. Charger les cours
       getUserCourses(user.id).then(data => {
         setCourses(data);
         setLoading(false);
       });
 
-      // 2. Charger la progression (Streak)
       getUserProgress(user.id).then(data => {
           if (data) {
               const today = new Date().toDateString();
@@ -44,7 +40,7 @@ export default function WorkspacePage() {
   return (
     <div className="animate-in fade-in duration-500 pb-32 pt-6 px-4 md:px-6 max-w-7xl mx-auto">
 
-      {/* HEADER + STREAK (Desktop) */}
+      {/* HEADER + STREAK */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-6">
         <div>
           <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">
@@ -52,29 +48,24 @@ export default function WorkspacePage() {
           </h1>
           <p className="text-lg text-slate-500 font-medium">Prêt à exploser tes scores ?</p>
         </div>
-
-        {/* Widget Streak Desktop (Caché sur mobile) */}
         <div className="hidden lg:block w-80">
             <StreakWidget streak={streakData.streak} activeToday={streakData.activeToday} />
         </div>
       </div>
 
-      {/* STREAK MOBILE (Visible uniquement sur mobile/tablette) */}
       <div className="lg:hidden mb-8 w-full">
           <StreakWidget streak={streakData.streak} activeToday={streakData.activeToday} />
       </div>
 
-      {/* WIDGET PARRAINAGE */}
-      {!isPremium && energy === 0 && (
-          <div className="mb-10">
+      {/* ✅ WIDGET PARRAINAGE (Visible dès que l'énergie baisse) */}
+      {!isPremium && energy <= 2 && (
+          <div className="mb-10 animate-in slide-in-from-top-4">
             <ReferralWidget />
           </div>
       )}
 
-      {/* HERO GRID (Actions principales) */}
+      {/* HERO GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-
-          {/* CARTE GÉANTE SCANNER (2 colonnes) */}
           <Link href="/workspace/capture" className="col-span-1 md:col-span-2 group relative block h-80 md:h-96 active:scale-[0.99] transition-transform">
               <div className="absolute inset-0 bg-slate-900 rounded-[2.5rem] shadow-2xl shadow-slate-300 overflow-hidden">
                   <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600 rounded-full blur-[100px] opacity-40 -mr-20 -mt-20 animate-pulse-slow"></div>
@@ -102,7 +93,6 @@ export default function WorkspacePage() {
               </div>
           </Link>
 
-          {/* COLONNE DROITE (Actions Rapides) */}
           <div className="flex flex-col gap-4 md:gap-6 h-full">
               <Link href="/workspace/quiz/generate" className="flex-1 bg-white border-2 border-slate-100 p-6 md:p-8 rounded-[2.5rem] flex flex-col justify-center items-center gap-4 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all group active:scale-95">
                   <div className="w-14 h-14 md:w-16 md:h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -119,7 +109,7 @@ export default function WorkspacePage() {
           </div>
       </div>
 
-      {/* SECTION COURS RÉCENTS */}
+      {/* COURS RÉCENTS */}
       <div>
           <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl md:text-3xl font-black text-slate-900">Activité Récente</h2>

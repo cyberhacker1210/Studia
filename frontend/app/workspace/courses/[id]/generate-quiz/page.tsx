@@ -8,6 +8,8 @@ import { generateQuizFromText, Quiz } from '@/lib/api';
 import { ArrowLeft, Loader2, Brain, Zap, Settings, FileText } from 'lucide-react';
 import QuizDisplay from '@/components/workspace/QuizDisplay';
 import QuizResults from '@/components/workspace/QuizResults';
+// ✅ IMPORT DU HOOK ÉNERGIE
+import { useEnergy } from '@/hooks/useEnergy';
 
 type Step = 'config' | 'generating' | 'taking' | 'results';
 
@@ -15,6 +17,10 @@ export default function GenerateQuizPage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoaded } = useUser();
+
+  // ✅ INITIALISATION DU HOOK
+  const { consumeEnergy, isPremium } = useEnergy();
+
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('config');
@@ -51,6 +57,16 @@ export default function GenerateQuizPage() {
 
   const handleGenerate = async () => {
     if (!course) return;
+
+    // ✅ VÉRIFICATION ET CONSOMMATION D'ÉNERGIE (Coût : 1)
+    const canProceed = await consumeEnergy(1);
+    if (!canProceed) {
+        if(confirm("⚡️ Pas assez d'énergie ! Recharger ou parrainer un ami ?")) {
+            router.push('/workspace/pricing');
+        }
+        return;
+    }
+
     try {
       setStep('generating');
       setError(null);
@@ -124,7 +140,8 @@ export default function GenerateQuizPage() {
              <p className="text-slate-500 font-medium text-lg">Depuis : {course.title}</p>
           </div>
 
-          <div className="card-b">
+          <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-8 shadow-sm">
+
             {/* Range Slider */}
             <div className="mb-10">
               <div className="flex justify-between items-end mb-4">
@@ -171,12 +188,15 @@ export default function GenerateQuizPage() {
               </div>
             </div>
 
-            {/* Action Button */}
+            {/* Action Button avec Coût Énergie */}
             <button
               onClick={handleGenerate}
-              className="w-full btn-b-primary py-4 text-lg"
+              className="w-full btn-b-primary py-4 text-lg flex items-center justify-center gap-2"
             >
-              <Zap size={20} fill="currentColor" /> Générer le Quiz
+              <Zap size={20} fill="currentColor" className="text-yellow-400"/>
+              Générer le Quiz
+              {/* Affichage du coût */}
+              {!isPremium && <span className="ml-2 text-xs bg-slate-800 text-yellow-400 px-2 py-0.5 rounded-full font-bold border border-yellow-400/30">-1 ⚡️</span>}
             </button>
 
             {/* Error Message */}
