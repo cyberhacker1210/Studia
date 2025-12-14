@@ -4,71 +4,75 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 import traceback
 import os
+import json
 from .database import supabase
 
 router = APIRouter()
 
 # --- CONFIG ---
+# Récupération et nettoyage des emails admins
 raw_env = os.getenv("ADMIN_EMAILS") or os.getenv("ADMIN_EMAIL") or ""
 raw_env = raw_env.replace('"', '').replace("'", "")
 ADMIN_EMAILS = [email.strip().lower() for email in raw_env.split(",") if email.strip()]
+
+# Récupération du mot de passe admin
 ADMIN_PASSWORD = os.getenv("ADMIN_SECRET", "studia123").strip()
 
-print(f"🔐 Admin Password Configured: {ADMIN_PASSWORD[:3]}***")
+print("=" * 30)
+print(f"🔍 DEBUG ADMIN CONFIG")
+print(f"➡️  Admins Emails : {ADMIN_EMAILS}")
+print(f"➡️  Admin Password : {ADMIN_PASSWORD[:3]}***")
+print("=" * 30)
+
+
+# --- MODÈLE Pydantic Standard ---
+class AnalyticsEvent(BaseModel):
+    user_id: str
+    event_type: str
+    event_data: Dict[str, Any] = {}
 
 
 # --- ENDPOINTS ---
 
 @router.post("/track")
-async def track_event(request: Request):
+async def track_event(event: AnalyticsEvent):
     """
-    Endpoint Analytics Robuste (Accepte Request brute pour éviter 422 Pydantic)
+    Endpoint Analytics Standard
+    Reçoit maintenant du JSON propre via le proxy Next.js
     """
+    if not supabase:
+        return {"status": "error", "detail": "Database not configured"}
+
     try:
-        # 1. Lire le JSON brut
-        body = await request.json()
-
-        # 2. Validation manuelle simple
-        user_id = body.get('user_id')
-        event_type = body.get('event_type')
-        event_data = body.get('event_data', {})
-
-        if not user_id or not event_type:
-            # On ignore silencieusement les requêtes mal formées
-            return {"status": "ignored", "reason": "missing_fields"}
-
-        # 3. Traitement spécial Premium
-        if event_type == 'premium_interest':
-            email = event_data.get('email')
-            if email and supabase:
+        # 1. Traitement spécial Premium (Sauvegarde dans table dédiée)
+        if event.event_type == 'premium_interest':
+            email = event.event_data.get('email')
+            if email:
                 supabase.table('premium_interests').upsert({
-                    "user_id": user_id,
+                    "user_id": event.user_id,
                     "email": email,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }, on_conflict="user_id").execute()
                 return {"status": "ok", "saved": "premium"}
 
-        # 4. Insert Analytics standard
-        if supabase:
-            supabase.table('analytics_events').insert({
-                "user_id": user_id,
-                "event_type": event_type,
-                "event_data": event_data,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
+        # 2. Insert Analytics standard
+        supabase.table('analytics_events').insert({
+            "user_id": event.user_id,
+            "event_type": event.event_type,
+            "event_data": event.event_data,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
 
         return {"status": "ok"}
 
     except Exception as e:
         print(f"❌ Analytics Error: {e}")
-        # On renvoie toujours 200 OK au client pour ne pas faire d'erreur console rouge
-        # L'analytique ne doit jamais casser l'expérience utilisateur
         return {"status": "error", "detail": str(e)}
 
 
 @router.get("/dashboard")
 async def get_admin_stats(x_admin_password: Optional[str] = Header(None)):
-    # 1. Auth
+    # 1. Auth par Mot de Passe
     if not x_admin_password or x_admin_password.strip() != ADMIN_PASSWORD:
         print(f"⛔️ Rejeté: '{x_admin_password}' != '{ADMIN_PASSWORD}'")
         raise HTTPException(status_code=403, detail="Mot de passe incorrect")
