@@ -249,66 +249,58 @@ def generate_diagnostic_quiz(t):
 
 
 def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
-    print(f"💊 Génération Remédiation pour : {weak_concepts}")
+    print(f"💊 Génération Remédiation Rapide pour : {weak_concepts}")
 
-    # On limite le contexte pour éviter les erreurs de tokens et réduire le coût
-    safe_text = course_text[:15000]
-    concepts_str = ', '.join(weak_concepts) if weak_concepts else "les notions clés du cours"
+    # ✅ Réduction drastique du contexte (5000 chars suffisent largement pour identifier le sujet)
+    safe_text = course_text[:5000]
+
+    concepts_str = ', '.join(weak_concepts) if weak_concepts else "points clés"
 
     prompt = f"""L'élève a des lacunes sur : {concepts_str}.
+    Crée un module de rattrapage court.
 
-    TA MISSION : Créer un module de rattrapage court et percutant.
-
-    FORMAT JSON ATTENDU :
+    JSON ATTENDU :
     {{
-      "summary": "Un cours Markdown clair qui réexplique ces concepts simplement avec des exemples.",
+      "summary": "Court paragraphe explicatif en Markdown.",
       "flashcards": [
-        {{ "front": "Question sur le concept 1", "back": "Réponse" }},
-        {{ "front": "Question sur le concept 2", "back": "Réponse" }},
-        {{ "front": "Définition importante", "back": "Explication" }}
+        {{ "front": "Q1", "back": "R1" }},
+        {{ "front": "Q2", "back": "R2" }}
       ]
     }}
-
-    Génère au moins 3 flashcards.
     """
 
-    # Modèle Pydantic Interne pour valider la sortie
-    class RemediationResponse(BaseModel):
-        summary: str = Field(description="Le cours de rattrapage.")
-        flashcards: List[dict] = Field(description="Liste des flashcards.")
-
     try:
-        completion = client.beta.chat.completions.parse(
+        # On n'utilise PAS Pydantic strict ici pour éviter les erreurs de validation
+        # On demande du JSON libre, c'est plus tolérant
+        completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": f"COURS SOURCE :\n{safe_text}"}
+                {"role": "user", "content": f"COURS (Extrait) :\n{safe_text}"}
             ],
-            response_format=RemediationResponse,
+            response_format={"type": "json_object"},
+            timeout=25  # ✅ Timeout explicite pour éviter que Render ne coupe avant
         )
 
-        data = completion.choices[0].message.parsed.model_dump()
+        raw_content = completion.choices[0].message.content
+        data = json.loads(raw_content)
 
-        # Vérification ultime
-        if not data["flashcards"] or len(data["flashcards"]) == 0:
-            print("⚠️ Flashcards vides, ajout d'une carte par défaut.")
-            data["flashcards"] = [{
-                "front": "Révision",
-                "back": "Relisez attentivement le résumé du cours pour bien comprendre."
-            }]
+        # Validation manuelle légère
+        summary = data.get("summary", "Pas de résumé disponible.")
+        cards = data.get("flashcards", [])
 
-        if not data["summary"]:
-            data["summary"] = "### Révision\n\nConcentrez-vous sur les points où vous avez fait des erreurs."
+        if not cards:
+            cards = [{"front": "Concept", "back": f"Révisez {concepts_str}"}]
 
-        return data
+        return {"summary": summary, "flashcards": cards}
 
     except Exception as e:
-        print(f"❌ Erreur Remédiation : {e}")
-        # Fallback pour ne jamais renvoyer du vide
+        print(f"❌ Erreur Remediation: {e}")
+        # Message de secours plus utile
         return {
-            "summary": "### Oups !\n\nUne erreur est survenue lors de la génération du cours de rattrapage. Essayez de recharger.",
+            "summary": f"### Révision ciblée\n\nConcentrez-vous sur : **{concepts_str}**.\n(L'IA n'a pas pu générer le détail exact)",
             "flashcards": [
-                {"front": "Erreur", "back": "Veuillez réessayer plus tard."}
+                {"front": "À revoir", "back": concepts_str}
             ]
         }
 
