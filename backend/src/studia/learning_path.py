@@ -248,19 +248,69 @@ def generate_diagnostic_quiz(t):
     return res.choices[0].message.parsed.model_dump()
 
 
-def generate_remediation_content(t, w, d):
-    class R(BaseModel):
-        text: str; flashcards: List[dict]
+def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
+    print(f"💊 Génération Remédiation pour : {weak_concepts}")
+
+    # On limite le contexte pour éviter les erreurs de tokens et réduire le coût
+    safe_text = course_text[:15000]
+    concepts_str = ', '.join(weak_concepts) if weak_concepts else "les notions clés du cours"
+
+    prompt = f"""L'élève a des lacunes sur : {concepts_str}.
+
+    TA MISSION : Créer un module de rattrapage court et percutant.
+
+    FORMAT JSON ATTENDU :
+    {{
+      "summary": "Un cours Markdown clair qui réexplique ces concepts simplement avec des exemples.",
+      "flashcards": [
+        {{ "front": "Question sur le concept 1", "back": "Réponse" }},
+        {{ "front": "Question sur le concept 2", "back": "Réponse" }},
+        {{ "front": "Définition importante", "back": "Explication" }}
+      ]
+    }}
+
+    Génère au moins 3 flashcards.
+    """
+
+    # Modèle Pydantic Interne pour valider la sortie
+    class RemediationResponse(BaseModel):
+        summary: str = Field(description="Le cours de rattrapage.")
+        flashcards: List[dict] = Field(description="Liste des flashcards.")
 
     try:
-        res = client.beta.chat.completions.parse(model="gpt-4o-mini",
-                                                 messages=[{"role": "user", "content": f"Remediation {w}"}],
-                                                 response_format=R)
-        d = res.choices[0].message.parsed.model_dump()
-        return {"summary": d['text'], "flashcards": d['flashcards']}
-    except:
-        return {"summary": "Err", "flashcards": []}
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"COURS SOURCE :\n{safe_text}"}
+            ],
+            response_format=RemediationResponse,
+        )
 
+        data = completion.choices[0].message.parsed.model_dump()
+
+        # Vérification ultime
+        if not data["flashcards"] or len(data["flashcards"]) == 0:
+            print("⚠️ Flashcards vides, ajout d'une carte par défaut.")
+            data["flashcards"] = [{
+                "front": "Révision",
+                "back": "Relisez attentivement le résumé du cours pour bien comprendre."
+            }]
+
+        if not data["summary"]:
+            data["summary"] = "### Révision\n\nConcentrez-vous sur les points où vous avez fait des erreurs."
+
+        return data
+
+    except Exception as e:
+        print(f"❌ Erreur Remédiation : {e}")
+        # Fallback pour ne jamais renvoyer du vide
+        return {
+            "summary": "### Oups !\n\nUne erreur est survenue lors de la génération du cours de rattrapage. Essayez de recharger.",
+            "flashcards": [
+                {"front": "Erreur", "back": "Veuillez réessayer plus tard."}
+            ]
+        }
 
 def generate_validation_quiz(t, c, d):
     res = client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": "Valid Quiz"}],
