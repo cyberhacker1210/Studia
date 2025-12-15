@@ -13,11 +13,11 @@ export default function ReferralHandler() {
 
       const referrerId = localStorage.getItem('studia_referrer_id');
 
-      // Anti-triche : pas de auto-parrainage
+      // 1. Anti-triche basique
       if (!referrerId || referrerId === user.id) return;
 
       try {
-        // Vérifier si déjà parrainé
+        // 2. Vérifier si déjà parrainé
         const { data: currentUser } = await supabase
           .from('users')
           .select('referred_by')
@@ -25,26 +25,25 @@ export default function ReferralHandler() {
           .single();
 
         if (currentUser?.referred_by) {
-          localStorage.removeItem('studia_referrer_id');
+          localStorage.removeItem('studia_referrer_id'); // Déjà fait
           return;
         }
 
         console.log("🔄 Validation du parrainage pour :", referrerId);
 
-        // Marquer comme parrainé
+        // 3. Marquer comme parrainé
         await supabase
           .from('users')
           .update({ referred_by: referrerId })
           .eq('id', user.id);
 
-        // Récupérer l'énergie du parrain
+        // 4. Donner +5 éclairs au parrain (Lecture + Écriture)
         const { data: referrer } = await supabase
           .from('users')
           .select('energy')
           .eq('id', referrerId)
           .single();
 
-        // Donner +5 éclairs au parrain
         if (referrer) {
             const newEnergy = (referrer.energy || 0) + 5;
             await supabase
@@ -52,7 +51,7 @@ export default function ReferralHandler() {
               .update({ energy: newEnergy })
               .eq('id', referrerId);
 
-            console.log("✅ Parrainage validé ! +5 éclairs distribués.");
+            console.log(`✅ Parrainage validé ! Le parrain a maintenant ${newEnergy} éclairs.`);
         }
 
         localStorage.removeItem('studia_referrer_id');
