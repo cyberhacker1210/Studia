@@ -9,7 +9,7 @@ export interface UserProgress {
   next_level_xp: number;
   progress_percent: number;
   last_study_date: string;
-  weekly_activity: boolean[]; // [Lun, Mar, Mer, Jeu, Ven, Sam, Dim]
+  weekly_activity: boolean[];
 }
 
 export function calculateLevel(totalXp: number): number {
@@ -31,19 +31,26 @@ export async function addXp(userId: string, amount: number, action: string) {
 
     if (!user) return { success: false };
 
+    // --- LOGIQUE STREAK CORRIGÉE ---
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    let lastDateStr = null;
+    if (user.last_study_date) {
+        lastDateStr = new Date(user.last_study_date).toISOString().split('T')[0];
+    }
+
     let newStreak = user.streak_days || 0;
-    const today = new Date().toDateString();
-    const lastDate = user.last_study_date ? new Date(user.last_study_date).toDateString() : null;
 
-    // Gestion de la Série (Streak)
-    if (lastDate !== today) {
-        const yesterday = new Date();
+    if (lastDateStr !== todayStr) {
+        const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-        if (lastDate === yesterday.toDateString()) {
+        if (lastDateStr === yesterdayStr) {
             newStreak += 1; // Continuité
         } else {
-            newStreak = 1; // Rupture ou début
+            newStreak = 1; // Rupture
         }
     }
 
@@ -55,11 +62,10 @@ export async function addXp(userId: string, amount: number, action: string) {
     await supabase
       .from('users')
       .update({
-        id: userId,
         xp: newXp,
         level: newLevel,
         streak_days: newStreak,
-        last_study_date: new Date().toISOString()
+        last_study_date: now.toISOString()
       })
       .eq('id', userId);
 
@@ -92,12 +98,12 @@ export async function getUserProgress(userId: string): Promise<UserProgress | nu
   const xpNeededForLevel = nextLevelXp - currentLevelBaseXp;
   const progress_percent = Math.min(100, Math.max(0, (xpInLevel / xpNeededForLevel) * 100));
 
-  // Simulation semaine (pour l'instant, on met tout à false sauf aujourd'hui si actif)
-  // V2 : Il faudrait une table 'activity_logs' pour avoir l'historique précis
-  const weekly_activity =Array(7).fill(false);
-  const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1; // Lun=0
+  const weekly_activity = Array(7).fill(false);
+  const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const lastDateStr = user.last_study_date ? new Date(user.last_study_date).toISOString().split('T')[0] : "";
 
-  if (user.last_study_date && new Date(user.last_study_date).toDateString() === new Date().toDateString()) {
+  if (lastDateStr === todayStr) {
       weekly_activity[todayIndex] = true;
   }
 

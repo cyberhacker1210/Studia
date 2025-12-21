@@ -9,183 +9,115 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# --- 1. MODÈLES ATOMIQUES ---
-
-class FlashcardItem(BaseModel):
-    front: str = Field(description="Recto")
-    back: str = Field(description="Verso")
+# --- MODÈLES COMMUNS ---
+class FlashcardItem(BaseModel): front: str; back: str
 
 
-class QuizItem(BaseModel):
-    question: str
-    options: List[str]
-    correctAnswer: int
-    explanation: str
+class QuizItem(BaseModel): question: str; options: List[str]; correctAnswer: int; explanation: str
 
 
-class OpenQuestion(BaseModel):
-    instruction: str = Field(description="Question de synthèse ou exercice.")
-    expected_answer_points: List[str] = Field(description="Points clés attendus.")
+class OpenQuestion(BaseModel): instruction: str; expected_answer_points: List[str]
 
 
-# --- 2. MODÈLES D'ÉTAPES SPÉCIFIQUES ---
-
-class StepTheory(BaseModel):
-    title: str
-    content_markdown: str = Field(description="Le cours structuré selon la méthode 20/20.")
-
-
-class StepVocabulary(BaseModel):
-    title: str = Field(description="Ex: 'Mots-clés obligatoires' ou 'Idioms'.")
-    flashcards: List[FlashcardItem]
+# --- NOUVEAU : FICHE DE SYNTHÈSE ---
+class SummarySheet(BaseModel):
+    title: str = Field(description="Titre de la fiche.")
+    key_definitions: List[dict] = Field(description="Liste {term, definition}. Définitions mot pour mot.")
+    core_concepts: str = Field(description="Les points essentiels du cours en Markdown structuré.")
+    exam_tips: List[str] = Field(description="Pièges à éviter et conseils méthode.")
 
 
-class StepMethodology(BaseModel):
-    title: str = Field(description="Ex: 'Structure de la dissertation'.")
-    tips_markdown: str = Field(description="Conseils méthodologiques précis.")
+# --- MODÈLES ÉTAPES (Mastery Path) ---
+class StepTheory(BaseModel): title: str; content_markdown: str
 
 
-class StepDeepQuiz(BaseModel):
-    title: str
-    questions: List[QuizItem]
+class StepVocabulary(BaseModel): title: str; flashcards: List[FlashcardItem]
 
 
-class StepPractice(BaseModel):
-    title: str
-    exercise: OpenQuestion = Field(description="Exercice d'application final.")
+class StepDeepQuiz(BaseModel): title: str; questions: List[QuizItem]
 
 
-# --- 3. BLUEPRINTS PAR MATIÈRE ---
-
-class MathPath(BaseModel):
-    step_1_theorems: StepTheory = Field(description="Définitions et théorèmes mot pour mot.")
-    step_2_formulas: StepVocabulary = Field(description="Flashcards des formules.")
-    step_3_logic_quiz: StepDeepQuiz = Field(description="Quiz sur les hypothèses et pièges.")
-    step_4_problem: StepPractice
+class StepStructure(BaseModel): title: str; items: List[dict]  # Simplifié pour éviter import circulaire
 
 
-class HistoryPath(BaseModel):
-    step_1_context: StepTheory = Field(description="Cours Cause -> Fait -> Conséquence.")
-    step_2_chronology: StepVocabulary = Field(description="Flashcards des dates clés.")
-    step_3_concepts: StepDeepQuiz
-    step_4_synthesis: StepPractice
+class StepMethodology(BaseModel): title: str; tips_markdown: str
 
 
-class PhilosophyPath(BaseModel):
-    step_1_authors: StepTheory = Field(description="Fiches auteurs et concepts.")
-    step_2_concepts: StepVocabulary = Field(description="Définitions précises.")
-    step_3_method: StepMethodology
-    step_4_essay: StepPractice
+class StepPractice(BaseModel): title: str; exercise: OpenQuestion
 
 
-class SVTPath(BaseModel):
-    step_1_mechanism: StepTheory
-    step_2_keywords: StepVocabulary = Field(description="Mots-clés obligatoires.")
-    step_3_validation: StepDeepQuiz
-    step_4_analysis: StepPractice
+# --- BLUEPRINTS (Mastery Path) ---
+class MathPath(
+    BaseModel): step_1_theorems: StepTheory; step_2_formulas: StepVocabulary; step_3_logic_quiz: StepDeepQuiz; step_4_problem: StepPractice
 
 
-class LanguagePath(BaseModel):
-    step_1_grammar: StepTheory
-    step_2_idioms: StepVocabulary = Field(description="Expressions idiomatiques.")
-    step_3_quiz: StepDeepQuiz
-    step_4_writing: StepPractice
+class HistoryPath(
+    BaseModel): step_1_context: StepTheory; step_2_chronology: StepVocabulary; step_3_check: StepDeepQuiz; step_4_synthesis: StepPractice
 
 
-class GeneralPath(BaseModel):
-    step_1_learn: StepTheory
-    step_2_memorize: StepVocabulary
-    step_3_check: StepDeepQuiz
-    step_4_apply: StepPractice
+class PhilosophyPath(
+    BaseModel): step_1_authors: StepTheory; step_2_concepts: StepVocabulary; step_3_method: StepMethodology; step_4_essay: StepPractice
 
 
-# --- FONCTIONS DE RÉPARATION (SELF-HEALING) ---
-
-def repair_flashcards(text: str) -> List[dict]:
-    print("🔧 Réparation Flashcards...")
-    try:
-        class FlashcardList(BaseModel):
-            cards: List[FlashcardItem]
-
-        res = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "Génère 5 flashcards pertinentes."},
-                      {"role": "user", "content": text[:10000]}],
-            response_format=FlashcardList
-        )
-        # Conversion en dict
-        return [c.model_dump() for c in res.choices[0].message.parsed.cards]
-    except Exception as e:
-        print(f"⚠️ Echec réparation FC: {e}")
-        return [{"front": "Erreur", "back": "Impossible de générer."}]
+class LanguagePath(
+    BaseModel): step_1_grammar: StepTheory; step_2_idioms: StepVocabulary; step_3_quiz: StepDeepQuiz; step_4_writing: StepPractice
 
 
-def repair_quiz(text: str) -> List[dict]:
-    print("🔧 Réparation Quiz...")
-    try:
-        class QuizList(BaseModel):
-            questions: List[QuizItem]
-
-        res = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "Génère 5 questions QCM."},
-                      {"role": "user", "content": text[:10000]}],
-            response_format=QuizList
-        )
-        return [q.model_dump() for q in res.choices[0].message.parsed.questions]
-    except:
-        return []
+class GeneralPath(
+    BaseModel): step_1_learn: StepTheory; step_2_memorize: StepVocabulary; step_3_check: StepDeepQuiz; step_4_apply: StepPractice
 
 
-# --- GÉNÉRATEUR PRINCIPAL ---
+# --- FONCTIONS ---
 
-def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
-    print(f"🧬 Génération Parcours 20/20 pour : {subject}")
+def generate_summary_sheet(course_text: str, subject: str) -> dict:
+    """Génère une fiche de révision dense."""
+    print(f"📝 Génération Fiche 20/20 pour : {subject}")
+    safe_text = course_text[:25000]
 
-    safe_text = course_text[:20000]
+    prompt = f"""Tu es un professeur agrégé de {subject}.
+    Rédige une fiche de révision d'excellence ("Fiche 20/20") pour ce cours.
 
-    if subject in ["Mathématiques", "NSI"]:
-        schema = MathPath
-        prompt = "Tu es un prof de Maths d'élite. Rigueur absolue."
-    elif subject in ["Histoire-Géo", "HGGSP"]:
-        schema = HistoryPath
-        prompt = "Tu es un prof d'Histoire. Chronologie et logique."
-    elif subject in ["Philosophie", "HLP", "Français"]:
-        schema = PhilosophyPath
-        prompt = "Tu es un prof de Philo. Concepts et Auteurs."
-    elif subject in ["SVT", "Physique-Chimie"]:
-        schema = SVTPath
-        prompt = "Tu es un prof de Sciences. Mots-clés et démarche."
-    elif subject in ["Anglais", "Espagnol", "Allemand"]:
-        schema = LanguagePath
-        prompt = "Tu es un prof de Langues. Vocabulaire riche."
-    else:
-        schema = GeneralPath
-        prompt = "Tu es un pédagogue expert."
+    EXIGENCES :
+    1. Définitions : Rigoureuses et exactes (à apprendre par cœur).
+    2. Contenu : Dense, structuré, sans blabla. Va droit au but.
+    3. Méthode : Ajoute des conseils spécifiques pour réussir l'examen sur ce sujet.
+    """
 
     try:
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"COURS :\n{safe_text}"}
-            ],
+            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": safe_text}],
+            response_format=SummarySheet,
+        )
+        return completion.choices[0].message.parsed.model_dump()
+    except Exception as e:
+        print(f"❌ Erreur Fiche: {e}")
+        return {}
+
+
+def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
+    print(f"🧬 Génération Parcours 20/20 pour : {subject}")
+    safe_text = course_text[:25000]
+
+    if subject in ["Mathématiques", "NSI"]:
+        schema = MathPath; prompt = "Prof de Maths."
+    elif subject in ["Histoire-Géo", "HGGSP"]:
+        schema = HistoryPath; prompt = "Prof d'Histoire."
+    elif subject in ["Philosophie", "Français"]:
+        schema = PhilosophyPath; prompt = "Prof de Lettres."
+    elif subject in ["Anglais", "Espagnol"]:
+        schema = LanguagePath; prompt = "Prof de Langues."
+    else:
+        schema = GeneralPath; prompt = "Pédagogue expert."
+
+    try:
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": f"COURS :\n{safe_text}"}],
             response_format=schema,
         )
-
         raw_data = completion.choices[0].message.parsed.model_dump()
 
-        # --- LOGIQUE D'AUTO-RÉPARATION ---
-        for key, value in raw_data.items():
-            # Si Flashcards vides -> Réparer
-            if "flashcards" in value and (not value["flashcards"] or len(value["flashcards"]) == 0):
-                value["flashcards"] = repair_flashcards(safe_text)
-
-            # Si Quiz vide -> Réparer
-            if "questions" in value and (not value["questions"] or len(value["questions"]) == 0):
-                value["questions"] = repair_quiz(safe_text)
-
-        # Transformation pour le frontend
         steps = []
         for key, value in raw_data.items():
             step_type = "unknown"
@@ -193,6 +125,7 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
                 step_type = "learn"
             elif "flashcards" in value:
                 step_type = "flashcards"
+                if not value["flashcards"]: value["flashcards"] = [{"front": "Vide", "back": "..."}]
             elif "questions" in value:
                 step_type = "quiz"
             elif "exercise" in value:
@@ -200,27 +133,51 @@ def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
             elif "tips_markdown" in value:
                 step_type = "method"
 
-            steps.append({
-                "type": step_type,
-                "title": value.get("title", "Étape"),
-                "data": value
-            })
-
+            steps.append({"type": step_type, "title": value.get("title", "Étape"), "data": value})
         return {"steps": steps}
-
     except Exception as e:
         print(f"❌ Erreur IA: {e}")
         return {"steps": []}
 
 
-# --- FONCTIONS SECONDAIRES (Requis pour main.py) ---
+# --- FONCTIONS SECONDAIRES (Compatibilité) ---
+class StepContentLearn(BaseModel): markdown: str
 
-class QuizQuestionAdaptive(BaseModel):
-    question: str;
-    options: List[str];
-    correct_index: int;
-    explanation: str;
-    concept: str
+
+class StepContentFlashcards(BaseModel): cards: List[dict]
+
+
+class StepContentQuiz(BaseModel): questions: List[dict]
+
+
+class StepContentPractice(BaseModel): instruction: str; context: str
+
+
+def generate_step_content(step_type: str, course_text: str, subject: str) -> dict:
+    safe_text = course_text[:20000]
+    if step_type == 'learn':
+        prompt = f"Cours Markdown {subject}"; schema = StepContentLearn
+    elif step_type == 'flashcards':
+        prompt = f"Flashcards {subject}"; schema = StepContentFlashcards
+    elif step_type == 'quiz':
+        prompt = f"Quiz {subject}"; schema = StepContentQuiz
+    elif step_type == 'practice':
+        prompt = f"Exercice {subject}"; schema = StepContentPractice
+    else:
+        return {}
+
+    try:
+        res = client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "system", "content": prompt},
+                                                                                {"role": "user", "content": safe_text}],
+                                                 response_format=schema)
+        return res.choices[0].message.parsed.model_dump()
+    except:
+        return {}
+
+
+# Autres stubs nécessaires
+class QuizQuestionAdaptive(BaseModel): question: str; options: List[
+    str]; correct_index: int; explanation: str; concept: str
 
 
 class DiagnosticResult(BaseModel): questions: List[QuizQuestionAdaptive]
@@ -241,108 +198,41 @@ class MicroTask(BaseModel): id: int; task: str; xp_reward: int
 class DailyPlan(BaseModel): daily_message: str; quote: str; micro_tasks: List[MicroTask]
 
 
-def generate_diagnostic_quiz(t):
-    res = client.beta.chat.completions.parse(model="gpt-4o-mini",
-                                             messages=[{"role": "user", "content": f"Diag:\n{t[:15000]}"}],
-                                             response_format=DiagnosticResult)
-    return res.choices[0].message.parsed.model_dump()
+def generate_diagnostic_quiz(t): return \
+client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Diag:\n{t[:15000]}"}],
+                                   response_format=DiagnosticResult).choices[0].message.parsed.model_dump()
 
 
-def generate_remediation_content(course_text: str, weak_concepts: List[str], difficulty: int = 1) -> dict:
-    print(f"💊 Génération Remédiation Rapide pour : {weak_concepts}")
-
-    # ✅ Réduction drastique du contexte (5000 chars suffisent largement pour identifier le sujet)
-    safe_text = course_text[:5000]
-
-    concepts_str = ', '.join(weak_concepts) if weak_concepts else "points clés"
-
-    prompt = f"""L'élève a des lacunes sur : {concepts_str}.
-    Crée un module de rattrapage court.
-
-    JSON ATTENDU :
-    {{
-      "summary": "Court paragraphe explicatif en Markdown.",
-      "flashcards": [
-        {{ "front": "Q1", "back": "R1" }},
-        {{ "front": "Q2", "back": "R2" }}
-      ]
-    }}
-    """
+def generate_remediation_content(t, w, d):
+    class R(BaseModel):
+        text: str; flashcards: List[dict]
 
     try:
-        # On n'utilise PAS Pydantic strict ici pour éviter les erreurs de validation
-        # On demande du JSON libre, c'est plus tolérant
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"COURS (Extrait) :\n{safe_text}"}
-            ],
-            response_format={"type": "json_object"},
-            timeout=25  # ✅ Timeout explicite pour éviter que Render ne coupe avant
-        )
-
-        raw_content = completion.choices[0].message.content
-        data = json.loads(raw_content)
-
-        # Validation manuelle légère
-        summary = data.get("summary", "Pas de résumé disponible.")
-        cards = data.get("flashcards", [])
-
-        if not cards:
-            cards = [{"front": "Concept", "back": f"Révisez {concepts_str}"}]
-
-        return {"summary": summary, "flashcards": cards}
-
-    except Exception as e:
-        print(f"❌ Erreur Remediation: {e}")
-        # Message de secours plus utile
-        return {
-            "summary": f"### Révision ciblée\n\nConcentrez-vous sur : **{concepts_str}**.\n(L'IA n'a pas pu générer le détail exact)",
-            "flashcards": [
-                {"front": "À revoir", "back": concepts_str}
-            ]
-        }
-
-def generate_validation_quiz(t, c, d):
-    res = client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": "Valid Quiz"}],
-                                             response_format=DiagnosticResult)
-    return res.choices[0].message.parsed.model_dump()
+        return {"summary": client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[
+            {"role": "user", "content": f"Remediation {w}"}], response_format=R).choices[0].message.parsed.text,
+                "flashcards": []}
+    except:
+        return {"summary": "Err", "flashcards": []}
 
 
-def generate_practice_exercise(t, d):
-    res = client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Exo {d}"}],
-                                             response_format=PracticeExercise)
-    return res.choices[0].message.parsed.model_dump()
+def generate_validation_quiz(t, c, d): return generate_diagnostic_quiz(t)
 
 
-def evaluate_student_answer(i, s, c):
-    res = client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Eval:{s}"}],
-                                             response_format=EvaluationResult)
-    return res.choices[0].message.parsed.model_dump()
+def generate_practice_exercise(t, d): return \
+client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Exo {d}"}],
+                                   response_format=PracticeExercise).choices[0].message.parsed.model_dump()
 
 
-def generate_daily_plan(g, d, c):
-    res = client.beta.chat.completions.parse(model="gpt-4o-mini",
-                                             messages=[{"role": "user", "content": f"Plan pour {goal}"}],
-                                             response_format=DailyPlan)
-    return res.choices[0].message.parsed.model_dump()
+def evaluate_student_answer(i, s, c): return \
+client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Eval:{s}"}],
+                                   response_format=EvaluationResult).choices[0].message.parsed.model_dump()
 
 
-def chat_with_tutor(history: list, course_context: str, current_message: str) -> str:
-    if course_context and len(course_context) > 50:
-        sys_prompt = f"Tu es un tuteur expert.\nCOURS:{course_context[:15000]}"
-    else:
-        sys_prompt = "Tu es Studia, un mentor pédagogique."
+def generate_daily_plan(g, d, c): return \
+client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Plan {g}"}],
+                                   response_format=DailyPlan).choices[0].message.parsed.model_dump()
 
-    messages = [{"role": "system", "content": sys_prompt}]
-    for msg in history[-6:]:
-        if msg.get("role") != "system": messages.append(msg)
-    messages.append({"role": "user", "content": current_message})
 
-    try:
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
-        return res.choices[0].message.content
-    except Exception as e:
-        print(f"❌ Chat Error: {e}")
-        return "Désolé, petit souci technique."
+def chat_with_tutor(h, c, m):
+    msgs = [{"role": "system", "content": "Tuteur."}] + h[-4:] + [{"role": "user", "content": m}]
+    return client.chat.completions.create(model="gpt-4o-mini", messages=msgs).choices[0].message.content

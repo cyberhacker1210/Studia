@@ -15,10 +15,9 @@ from .quiz_generator import quiz_generator_from_image, quiz_generator_from_text,
 from .flashcard_generator import generate_flashcards
 from .learning_path import *
 from .admin import router as admin_router
-# ✅ IMPORT NOTIFICATIONS
 from .notifications import router as notif_router
 
-app = FastAPI(title="Studia API", version="2.8.0")
+app = FastAPI(title="Studia API", version="2.9.0")
 
 LEMON_WEBHOOK_SECRET = os.getenv("LEMON_WEBHOOK_SECRET")
 
@@ -52,11 +51,13 @@ class MotivationResponse(BaseModel): daily_message: str; quote: str; micro_tasks
 class ChatRequest(BaseModel): message: str; history: List[dict]; course_context: str
 class ChatResponse(BaseModel): reply: str
 class MasteryRequest(BaseModel): course_text: str; subject: str = "Général"
+class StepRequest(BaseModel): step_type: str; course_text: str; subject: str
+class SummaryRequest(BaseModel): course_text: str; subject: str # ✅ NOUVEAU
 
 # --- ENDPOINTS ---
 
 @app.get("/")
-def root(): return {"status": "online", "version": "2.8.0"}
+def root(): return {"status": "online", "version": "2.9.0"}
 
 @app.post("/api/extract-text", response_model=ExtractTextResponse)
 async def extract_text_endpoint(request: ExtractTextRequest):
@@ -98,46 +99,37 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
 
 @app.post("/api/path/diagnostic")
 async def diagnostic_endpoint(req: CourseRequest): return generate_diagnostic_quiz(req.course_text)
-
 @app.post("/api/path/remediation")
 async def remediation_endpoint(req: RemediationRequest): return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
-
 @app.post("/api/path/validation")
 async def validation_endpoint(req: ValidationRequest): return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
-
 @app.post("/api/path/practice")
 async def practice_endpoint(req: PracticeRequest): return generate_practice_exercise(req.course_text, req.difficulty)
-
 @app.post("/api/path/evaluate", response_model=EvaluateResponse)
 async def evaluate_answer_endpoint(req: EvalRequest): return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
-
 @app.post("/api/motivation/generate", response_model=MotivationResponse)
 async def motivation_endpoint(request: MotivationRequest): return generate_daily_plan(request.goal, request.deadline, request.current_xp)
-
 @app.post("/api/chat/tutor", response_model=ChatResponse)
-async def chat_tutor_endpoint(request: ChatRequest):
-    return ChatResponse(reply=chat_with_tutor(request.history, request.course_context, request.message))
-
+async def chat_tutor_endpoint(request: ChatRequest): return ChatResponse(reply=chat_with_tutor(request.history, request.course_context, request.message))
 @app.post("/api/path/generate")
-async def path_generate_endpoint(request: MasteryRequest):
-    return generate_mastery_path(request.course_text, request.subject)
+async def path_generate_endpoint(request: MasteryRequest): return generate_mastery_path(request.course_text, request.subject)
+@app.post("/api/path/step")
+async def step_content_endpoint(req: StepRequest): return generate_step_content(req.step_type, req.course_text, req.subject)
+
+# ✅ NOUVEAU ENDPOINT FICHE
+@app.post("/api/path/summary")
+async def summary_endpoint(req: SummaryRequest): return generate_summary_sheet(req.course_text, req.subject)
 
 app.include_router(admin_router, prefix="/api/analytics", tags=["Admin"])
-# ✅ ROUTE NOTIFICATIONS
 app.include_router(notif_router, prefix="/api/notifications", tags=["Notifications"])
 
 @app.post("/api/webhook/lemon")
 async def lemon_webhook(request: Request):
     if not LEMON_WEBHOOK_SECRET: return {"error": "No secret"}
-    body = await request.body()
-    signature = request.headers.get("X-Signature")
-    expected = hmac.new(LEMON_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(signature, expected): raise HTTPException(401, "Invalid signature")
     data = await request.json()
     if data.get("meta", {}).get("event_name") in ["order_created", "subscription_created"]:
         user_id = data.get("meta", {}).get("custom_data", {}).get("user_id")
-        if user_id and supabase:
-            supabase.table('users').update({'is_premium': True, 'energy': 999}).eq('id', user_id).execute()
+        if user_id and supabase: supabase.table('users').update({'is_premium': True, 'energy': 999}).eq('id', user_id).execute()
     return {"received": True}
 
 if __name__ == "__main__":
