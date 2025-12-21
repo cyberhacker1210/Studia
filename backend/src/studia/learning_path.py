@@ -70,30 +70,64 @@ class GeneralPath(
 # --- FONCTIONS ---
 
 def generate_summary_sheet(course_text: str, subject: str) -> dict:
-    """Génère une fiche de révision dense."""
+    """Génère une fiche de révision dense (Version Robuste)."""
     print(f"📝 Génération Fiche 20/20 pour : {subject}")
-    safe_text = course_text[:25000]
+
+    # On limite à 15k caractères pour être sûr que ça passe avec gpt-4o-mini
+    safe_text = course_text[:15000]
 
     prompt = f"""Tu es un professeur agrégé de {subject}.
-    Rédige une fiche de révision d'excellence ("Fiche 20/20") pour ce cours.
+    Rédige une fiche de révision d'excellence pour ce cours.
 
-    EXIGENCES :
-    1. Définitions : Rigoureuses et exactes (à apprendre par cœur).
-    2. Contenu : Dense, structuré, sans blabla. Va droit au but.
-    3. Méthode : Ajoute des conseils spécifiques pour réussir l'examen sur ce sujet.
+    FORMAT JSON STRICT :
+    {{
+      "title": "Titre du chapitre",
+      "key_definitions": [
+        {{"term": "Mot clé 1", "definition": "Définition précise"}},
+        {{"term": "Mot clé 2", "definition": "Définition précise"}}
+      ],
+      "core_concepts": "Résumé structuré en Markdown (utilises des # titres et - listes).",
+      "exam_tips": ["Conseil 1", "Piège à éviter"]
+    }}
     """
 
     try:
+        # Essai avec Pydantic
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": prompt}, {"role": "user", "content": safe_text}],
             response_format=SummarySheet,
         )
         return completion.choices[0].message.parsed.model_dump()
-    except Exception as e:
-        print(f"❌ Erreur Fiche: {e}")
-        return {}
 
+    except Exception as e:
+        print(f"❌ Erreur Fiche Pydantic: {e}")
+
+        # Fallback manuel (si Pydantic échoue)
+        try:
+            res = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": prompt + " Réponds uniquement en JSON valide."},
+                    {"role": "user", "content": safe_text}
+                ],
+                response_format={"type": "json_object"}
+            )
+            data = json.loads(res.choices[0].message.content)
+            # On s'assure que les champs existent
+            return {
+                "title": data.get("title", "Fiche de Révision"),
+                "key_definitions": data.get("key_definitions", []),
+                "core_concepts": data.get("core_concepts", "Résumé non généré."),
+                "exam_tips": data.get("exam_tips", [])
+            }
+        except:
+            return {
+                "title": "Erreur de Génération",
+                "key_definitions": [],
+                "core_concepts": "L'IA n'a pas pu traiter ce cours. Il est peut-être trop long ou illisible.",
+                "exam_tips": []
+            }
 
 def generate_mastery_path(course_text: str, subject: str = "Général") -> dict:
     print(f"🧬 Génération Parcours 20/20 pour : {subject}")
