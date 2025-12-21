@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { getCourseById, Course } from '@/lib/courseService';
 import {
     ArrowLeft, Brain, Zap, Loader2, ChevronRight,
-    Sparkles, Play, X, BookOpen, Calendar, ArrowRight as ArrowIcon,
+    Sparkles, Play, X, BookOpen, Calendar, ArrowRight,
     AlignLeft, List, Type, Minus, Plus, Clock, FileText, Target
 } from 'lucide-react';
 import Link from 'next/link';
@@ -140,7 +140,7 @@ export default function CourseDetailPage() {
                     <p className="text-slate-500 font-medium max-w-md text-lg">Le chemin guidé vers l'excellence. Apprends, mémorise et valide chaque notion.</p>
                 </div>
                 <div className="relative z-10 flex items-center gap-2 text-blue-600 font-bold mt-8 group-hover:translate-x-2 transition-transform">
-                    Lancer la session <ArrowRightIcon size={20} strokeWidth={3} />
+                    Lancer la session <ArrowRight size={20} strokeWidth={3} />
                 </div>
             </Link>
 
