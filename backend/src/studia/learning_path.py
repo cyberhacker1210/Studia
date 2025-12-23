@@ -257,8 +257,7 @@ def generate_practice_exercise(t, d):
     Voici le cours :
     {t}
 
-    Génère un exercice mobilisant les connaissances du cours.
-    Niveau de difficulté : {d}
+    génere un exercice contenant dans l instruction la question du niveau : {d}
     """
 
     response = client.beta.chat.completions.parse(

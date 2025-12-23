@@ -13,9 +13,13 @@ export default function SummaryPage() {
   const { user } = useUser();
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
-    if (user && id) {
+      console.log("🔍 useEffect déclenché", { user: !!user, id, hasLoaded });
+    if (user && id && !hasLoaded) {
+        console.log("✅ Condition passée, fetch lancé !");
+        setHasLoaded(true);
         getCourseById(Number(id), user.id).then(async (course) => {
             try {
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/path/summary`, {
@@ -30,8 +34,10 @@ export default function SummaryPage() {
                 setLoading(false);
             }
         });
-    }
-  }, [user, id]);
+    }else{
+        console.log("❌ Condition bloquée");
+        }
+  }, [user, id, hasLoaded]);
 
   if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600 h-12 w-12"/></div>;
   if (!summary) return <div className="p-10 text-center font-bold text-slate-500">Impossible de générer la fiche.</div>;
