@@ -12,16 +12,18 @@ export default function PracticePage() {
   const { user } = useUser();
   const [exercise, setExercise] = useState<any>(null);
   const [courseText, setCourseText] = useState("");
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
-    if (user && id) {
+    if (user && id && !hasLoaded) {
+        setHasLoaded(true);
         getCourseById(Number(id), user.id).then(async (course) => {
             setCourseText(course.extracted_text);
             try {
                 // Appel API pour générer un exercice "Difficile" par défaut
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/path/practice`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ course_text: course.extracted_text, difficulty: "hard" })
+                    body: JSON.stringify({ course_text: course.extracted_text, difficulty: "easy" })
                 });
                 const data = await res.json();
                 setExercise(data);
@@ -30,7 +32,7 @@ export default function PracticePage() {
             }
         });
     }
-  }, [user, id]);
+  }, [user, id, hasLoaded]);
 
   if (!exercise) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600 h-12 w-12"/></div>;
 

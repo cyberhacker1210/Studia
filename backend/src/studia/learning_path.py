@@ -220,7 +220,7 @@ class DiagnosticResult(BaseModel): questions: List[QuizQuestionAdaptive]
 class RemediationContent(BaseModel): summary: str; flashcards: List[dict]
 
 
-class PracticeExercise(BaseModel): instruction: str; context: str; difficulty: Literal['easy', 'hard']
+class PracticeExercise(BaseModel): instruction: str; difficulty: Literal['easy', 'hard']
 
 
 class EvaluationResult(BaseModel): is_correct: bool; score: int; feedback: str; correction: str
