@@ -135,7 +135,25 @@ class StepRequest(BaseModel):
 
 class SummaryRequest(BaseModel):
         course_text: str;
-        subject: str # ✅ NOUVEAU
+        subject: str
+
+class StartRequest(BaseModel):
+    course_text: str
+    subject: str
+
+class AnalyzeRequest(BaseModel):
+    student_answer: str
+    question: str
+    expected_points: List[str]
+
+class PracticeRequest(BaseModel):
+    course_text: str
+    weak_concepts: List[str]
+
+class ExamRequest(BaseModel):
+    course_text: str
+
+
 
 # --- ENDPOINTS ---
 
@@ -223,6 +241,31 @@ async def lemon_webhook(request: Request):
         user_id = data.get("meta", {}).get("custom_data", {}).get("user_id")
         if user_id and supabase: supabase.table('users').update({'is_premium': True, 'energy': 999}).eq('id', user_id).execute()
     return {"received": True}
+
+@app.post("/api/adaptive/start")
+def api_start_adaptive(request: StartRequest):
+    # Appelle ta fonction orchestrateur
+    result = start_adaptive_learning(request.course_text, request.subject)
+    return result
+
+@app.post("/api/adaptive/analyze")
+def api_analyze_answer(request: AnalyzeRequest):
+    return analyze_student_answer(
+        request.student_answer,
+        request.question,
+        request.expected_points
+    )
+
+@app.post("/api/adaptive/practice")
+def api_generate_practice(request: PracticeRequest):
+    return generate_progressive_practice(
+        request.course_text,
+        request.weak_concepts
+    )
+
+@app.post("/api/adaptive/exam")
+def api_generate_exam(request: ExamRequest):
+    return generate_exam_simulation(request.course_text)
 
 if __name__ == "__main__":
     import uvicorn

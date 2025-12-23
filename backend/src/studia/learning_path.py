@@ -1,6 +1,8 @@
 import json
 import os
 from typing import List, Literal, Optional, Any
+
+from pip._internal.commands import completion
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -44,6 +46,50 @@ class StepMethodology(BaseModel): title: str; tips_markdown: str
 
 
 class StepPractice(BaseModel): title: str; exercise: OpenQuestion
+
+class DiagnosticQuestion(BaseModel):
+    id: int;
+    concept: str
+    question: str;
+    expected_answer_points: List[str];
+
+class ConceptAnalysis(BaseModel):
+    id: int;
+    concept: str ;
+    understanding_score: int;
+    correct_points: List[str];
+    missing_points: List[str];
+    misconceptions: List[str];
+    feedback: str;
+
+class DiagnosticQuestionSet(BaseModel):
+    questions: List[DiagnosticQuestion];
+
+class ProgressiveExerciseSet(BaseModel):
+    exercice_facile : OpenQuestion;
+    exercice_moyen : OpenQuestion;
+    exercice_difficile : OpenQuestion;
+
+class ExamSimulation(BaseModel):
+    title: str
+    subject_context: str
+    main_problem: str
+    hints: List[str]
+    correction_criteria: List[str]
+    success_threshold: int
+
+
+class AdaptiveMasteryPath(BaseModel):
+    title: str
+
+    # ÉTAPE 1 : Toujours disponible au début
+    step_1_theory: StepTheory  # Le cours (pour réviser avant)
+    step_2_diagnostic: DiagnosticQuestionSet  # Les 5 questions pour tester
+
+    # ÉTAPES SUIVANTES : Vides au début (Placeholder)
+    # On met Optional car on ne les a pas encore !
+    step_3_remediation: Optional[ProgressiveExerciseSet] = None
+    step_4_exam: Optional[ExamSimulation] = None
 
 
 # --- BLUEPRINTS (Mastery Path) ---
@@ -379,6 +425,152 @@ Lycéen. Il a le cours mais n'arrive pas à l'assimiler efficacement.
         return {"steps": []}
 
 
+def generate_diagnostic_questions(course_text : str, subject : str) -> dict:
+    safe_text = course_text[:15000]
+
+    prompt = f"""
+    Tu es un professeur expert en pédagogie de {subject}.
+
+    🎯 OBJECTIF : 
+    Créer un diagnostic pour évaluer si l'élève a une compréhension PROFONDE du cours.
+
+    🚫 À ÉVITER ABSOLUMENT :
+    - Les questions "Oui/Non"
+    - La récitation simple de dates ou de définitions par cœur
+    - Les questions superficielles
+
+    ✅ TYPES DE QUESTIONS ATTENDUES :
+    1. COMPARAISON : Demande de lier ou d'opposer deux concepts (ex: "Terre vs Vénus")
+    2. CAUSALITÉ : "Pourquoi..." ou "Comment..."
+    3. SYNTHÈSE : Demande d'expliquer un mécanisme global
+
+    POUR CHAQUE QUESTION :
+    - Identifie clairement le concept testé.
+    - Liste les points clés (mots ou idées) attendus dans la réponse de l'élève.
+    """
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": prompt}, {"role": "user", "content": f"COURS :\n{safe_text}"}],
+        response_format=DiagnosticQuestionSet,
+    )
+
+    return (completion.choices[0].message.parsed.model_dump())
+
+
+def analyze_student_answer(student_answer: str, question: str, expected_points: List[str]) -> dict:
+    # SYSTEM : Le rôle et les règles
+    system_prompt = """
+    Tu es un professeur agrégé expert. Tu es bienveillant mais JUSTE.
+    Ta mission est d'analyser la réponse de l'élève pour l'aider à progresser.
+
+    CRITÈRES D'ANALYSE :
+    1. Vérifie si le SENS des points attendus est présent.
+    2. Identifie connaissances acquises, lacunes et fausses croyances.
+    3. Donne un score de compréhension (0-100).
+    """
+
+    user_content = f"""
+    CONTEXTE :
+    - Question : "{question}"
+    - Points attendus : {", ".join(expected_points)}
+
+    RÉPONSE ÉLÈVE :
+    "{student_answer}"
+
+    Analyse cette réponse maintenant.
+    """
+
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ],
+        response_format=ConceptAnalysis,
+    )
+
+    return completion.choices[0].message.parsed.model_dump()
+
+def generate_progressive_practice(course_text: str, weak_concepts: List[str]) -> dict:
+    safe_text = course_text[:20000]  # Un peu plus large pour les exos
+    concepts_str = ", ".join(weak_concepts)
+    prompt = f"""
+    Tu es un coach pédagogique expert, spécialisé dans la remédiation scolaire.
+    Ton élève a des lacunes identifiées sur : {concepts_str}.
+
+    🎯 OBJECTIF :
+    Créer une progression de 3 exercices pour l'amener de la difficulté à la maîtrise.
+    Basé strictement sur le cours fourni.
+
+    📈 LA PROGRESSION ATTENDUE :
+
+    1. EXERCICE FACILE (Mise en confiance) :
+       - Application directe et mécanique du cours.
+       - Aucune piège.
+       - But : Vérifier qu'il connaît la définition/formule de base.
+
+    2. EXERCICE MOYEN (Connexion) :
+       - Demande de réfléchir et de choisir le bon outil.
+       - Peut combiner deux notions simples.
+       - But : Vérifier qu'il comprend QUAND utiliser la notion.
+
+    3. EXERCICE DIFFICILE (Maîtrise / Type Examen) :
+       - Situation complexe ou inédite.
+       - Nécessite plusieurs étapes de raisonnement.
+       - Contient des subtilités ou pièges classiques.
+       - But : Vérifier s'il est prêt pour l'évaluation finale.
+
+    Pour chaque exercice, fournis l'instruction claire et les points clés attendus pour la correction en te basant seulement sur le cours de reférence : {safe_text}
+    """
+    try:
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format=ProgressiveExerciseSet,
+        )
+        return completion.choices[0].message.parsed.model_dump()
+
+    except Exception as e:
+        print(f"❌ Erreur Pratique: {e}")
+        return {}
+
+
+def generate_exam_simulation(course_text: str) -> dict:
+    safe_text = course_text[:20000]
+
+    prompt = f"""
+        Tu es un examinateur officiel.
+        Ton objectif : Créer un sujet d'examen FINAL pour valider ce chapitre.
+
+        CONTRAINTES :
+        1. Le sujet doit être de niveau EXAMEN (Bac/Contrôle final).
+        2. Il doit mélanger les concepts (ne pas être linéaire).
+        3. Il doit demander de la rédaction et de la rigueur.
+
+        Génère :
+        - Un énoncé clair.
+        - 3 indices progressifs (du plus vague au plus précis) pour débloquer l'élève sans donner la réponse.
+        - Une liste de CRITÈRES PRÉCIS pour l'évaluation (ce qu'il faut absolument avoir écrit pour avoir les points).
+        - Le nombre de critères nécessaires pour avoir la moyenne (threshold).
+
+        Basé sur ce cours :
+        {safe_text}
+        """
+
+    try:
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format=ExamSimulation,
+        )
+        return completion.choices[0].message.parsed.model_dump()
+
+    except Exception as e:
+        print(f"❌ Erreur Examen: {e}")
+        return {}
+
+
+
 # --- FONCTIONS SECONDAIRES (Compatibilité) ---
 class StepContentLearn(BaseModel): markdown: str
 
@@ -490,3 +682,80 @@ client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user
 def chat_with_tutor(h, c, m):
     msgs = [{"role": "system", "content": "Tuteur."}] + h[-4:] + [{"role": "user", "content": m}]
     return client.chat.completions.create(model="gpt-4o-mini", messages=msgs).choices[0].message.content
+
+
+def start_adaptive_learning(course_text: str, subject: str) -> dict:
+    print(f"🚀 Démarrage Parcours Adaptatif : {subject}")
+    safe_text = course_text[:20000]
+
+    prompt_theory = ""
+
+    if subject in ["Mathématiques", "NSI"]:
+        prompt_theory = """
+        Tu es un professeur agrégé de mathématiques.
+        Rédige UNIQUEMENT la partie COURS (Théorie) pour cet élève.
+
+        CRITÈRES D'EXCELLENCE :
+        - Réexplique chaque notion avec des MOTS SIMPLES d'abord
+        - Puis donne la définition rigoureuse exacte
+        - Ajoute un exemple CONCRET pour chaque notion
+        - Explique le POURQUOI (à quoi ça sert)
+        """
+    elif subject in ["Histoire-Géo", "HGGSP"]:
+        prompt_theory = """
+        Tu es un professeur d'Histoire-Géo.
+        Rédige UNIQUEMENT la partie CONTEXTE et COURS.
+
+        CRITÈRES D'EXCELLENCE :
+        - Situe le chapitre dans son époque et son espace
+        - Explique les ENJEUX et problématiques
+        - Structure avec des parties claires
+        """
+    else:
+        prompt_theory = """
+        Tu es un professeur expert.
+        Rédige une leçon structurée et approfondie sur ce texte.
+        Explique les concepts clés, donne des exemples et structure le tout logiquement.
+        """
+
+    theory_completion = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": prompt_theory},
+            {"role": "user", "content": safe_text}
+        ],
+        response_format=StepTheory
+    )
+
+    diagnostic_data = generate_diagnostic_questions(safe_text, subject)
+
+    # 4. Assemblage
+    return {
+        "title": f"Parcours : {subject}",
+        "steps": [
+            {
+                "id": 1,
+                "type": "theory",
+                "status": "unlocked",
+                "content": theory_completion.choices[0].message.parsed.model_dump()
+            },
+            {
+                "id": 2,
+                "type": "diagnostic",
+                "status": "unlocked",
+                "content": diagnostic_data
+            },
+            {
+                "id": 3,
+                "type": "remediation",
+                "status": "locked",
+                "content": None
+            },
+            {
+                "id": 4,
+                "type": "exam",
+                "status": "locked",
+                "content": None
+            }
+        ]
+    }
