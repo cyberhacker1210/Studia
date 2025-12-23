@@ -252,9 +252,25 @@ def generate_remediation_content(t, w, d):
 def generate_validation_quiz(t, c, d): return generate_diagnostic_quiz(t)
 
 
-def generate_practice_exercise(t, d): return \
-client.beta.chat.completions.parse(model="gpt-4o-mini", messages=[{"role": "user", "content": f"Exo {d}"}],
-                                   response_format=PracticeExercise).choices[0].message.parsed.model_dump()
+def generate_practice_exercise(t, d):
+    prompt = f"""
+    Voici le cours :
+    {t}
+
+    Génère un exercice mobilisant les connaissances du cours.
+    Niveau de difficulté : {d}
+    """
+
+    response = client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt},
+                  {"role": "system", "content": "tu es un proffesseur expert"}
+
+                  ],
+        response_format=PracticeExercise
+    )
+
+    return response.choices[0].message.parsed.model_dump()
 
 
 def evaluate_student_answer(i, s, c): return \

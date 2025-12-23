@@ -29,30 +29,113 @@ app.add_middleware(
     allow_headers=["*", "x-admin-password", "content-type", "authorization"],
 )
 
-# --- MODELS ---
-class ExtractTextRequest(BaseModel): images: List[str]
-class ExtractTextResponse(BaseModel): totalImages: int; pagesExtracted: int; extractedText: str; pages: List[Any]
-class QuizGenerateFromTextRequest(BaseModel): course_text: str; num_questions: int = 5; difficulty: str = "medium"
-class QuizGenerateRequest(BaseModel): image: str; num_questions: int = 5; difficulty: str = "medium"
-class QuizQuestion(BaseModel): id: int; question: str; options: List[str]; correctAnswer: int; explanation: Optional[str] = ""
-class QuizResponse(BaseModel): id: str; questions: List[QuizQuestion]; createdAt: str; extractedText: Optional[str] = ""
-class FlashcardGenerateRequest(BaseModel): course_text: str; num_cards: int = 10; difficulty: str = "medium"
-class Flashcard(BaseModel): front: str; back: str; category: Optional[str] = "Général"; difficulty: Optional[str] = "medium"
-class FlashcardResponse(BaseModel): id: str; flashcards: List[Flashcard]; createdAt: str
+# --- formulaire d echange
+class ExtractTextRequest(BaseModel):
+        images: List[str]
 
-class CourseRequest(BaseModel): course_text: str
-class RemediationRequest(BaseModel): course_text: str; weak_concepts: List[str]; difficulty: int
-class ValidationRequest(BaseModel): course_text: str; concepts: List[str]; difficulty: int
-class PracticeRequest(BaseModel): course_text: str; difficulty: str
-class EvalRequest(BaseModel): instruction: str; student_answer: str; course_context: str
-class EvaluateResponse(BaseModel): is_correct: bool; feedback: str; score: int; correction: str
-class MotivationRequest(BaseModel): goal: str; deadline: str; current_xp: int = 0
-class MotivationResponse(BaseModel): daily_message: str; quote: str; micro_tasks: List[dict]
-class ChatRequest(BaseModel): message: str; history: List[dict]; course_context: str
-class ChatResponse(BaseModel): reply: str
-class MasteryRequest(BaseModel): course_text: str; subject: str = "Général"
-class StepRequest(BaseModel): step_type: str; course_text: str; subject: str
-class SummaryRequest(BaseModel): course_text: str; subject: str # ✅ NOUVEAU
+class ExtractTextResponse(BaseModel):
+        totalImages: int;
+        pagesExtracted: int;
+        extractedText: str;
+        pages: List[Any]
+
+class QuizGenerateFromTextRequest(BaseModel):
+        course_text: str;
+        num_questions: (int) = 5;
+        difficulty: str = "medium"
+
+class QuizGenerateRequest(BaseModel):
+        image: str;
+        num_questions: int = 5;
+        difficulty: str = "medium"
+
+class QuizQuestion(BaseModel):
+        id: int;
+        question: str;
+        options: List[str];
+        correctAnswer: int;
+        explanation: Optional[str] = ""
+
+class QuizResponse(BaseModel):
+        id: str;
+        questions: List[QuizQuestion];
+        createdAt: str;
+        extractedText: Optional[str] = ""
+
+class FlashcardGenerateRequest(BaseModel):
+        course_text: str;
+        num_cards: int = 10;
+        difficulty: str = "medium"
+
+class Flashcard(BaseModel):
+        front: str;
+        back: str;
+        category: Optional[str] = "Général";
+        difficulty: Optional[str] = "medium"
+
+class FlashcardResponse(BaseModel):
+        id: str;
+        flashcards: List[Flashcard];
+        createdAt: str
+
+class CourseRequest(BaseModel):
+        course_text: str
+
+class RemediationRequest(BaseModel):
+        course_text: str;
+        weak_concepts: List[str];
+        difficulty: int
+
+class ValidationRequest(BaseModel):
+        course_text: str;
+        concepts: List[str];
+        difficulty: int
+
+class PracticeRequest(BaseModel):
+        course_text: str;
+        difficulty: str
+
+class EvalRequest(BaseModel):
+        instruction: str;
+        student_answer: str;
+        course_context: str
+
+class EvaluateResponse(BaseModel):
+        is_correct: bool;
+        feedback: str;
+        score: int;
+        correction: str
+
+class MotivationRequest(BaseModel):
+        goal: str;
+        deadline: str;
+        current_xp: int = 0
+
+class MotivationResponse(BaseModel):
+        daily_message: str;
+        quote: str;
+        micro_tasks: List[dict]
+
+class ChatRequest(BaseModel):
+        message: str;
+        history: List[dict];
+        course_context: str
+
+class ChatResponse(BaseModel):
+        reply: str
+
+class MasteryRequest(BaseModel):
+        course_text: str;
+        subject: str = "Général"
+
+class StepRequest(BaseModel):
+        step_type: str;
+        course_text: str;
+        subject: str
+
+class SummaryRequest(BaseModel):
+        course_text: str;
+        subject: str # ✅ NOUVEAU
 
 # --- ENDPOINTS ---
 
@@ -99,22 +182,31 @@ async def generate_flashcards_endpoint(request: FlashcardGenerateRequest):
 
 @app.post("/api/path/diagnostic")
 async def diagnostic_endpoint(req: CourseRequest): return generate_diagnostic_quiz(req.course_text)
+
 @app.post("/api/path/remediation")
 async def remediation_endpoint(req: RemediationRequest): return generate_remediation_content(req.course_text, req.weak_concepts, req.difficulty)
+
 @app.post("/api/path/validation")
 async def validation_endpoint(req: ValidationRequest): return generate_validation_quiz(req.course_text, req.concepts, req.difficulty)
+
 @app.post("/api/path/practice")
 async def practice_endpoint(req: PracticeRequest): return generate_practice_exercise(req.course_text, req.difficulty)
+
 @app.post("/api/path/evaluate", response_model=EvaluateResponse)
 async def evaluate_answer_endpoint(req: EvalRequest): return evaluate_student_answer(req.instruction, req.student_answer, req.course_context)
+
 @app.post("/api/motivation/generate", response_model=MotivationResponse)
 async def motivation_endpoint(request: MotivationRequest): return generate_daily_plan(request.goal, request.deadline, request.current_xp)
+
 @app.post("/api/chat/tutor", response_model=ChatResponse)
 async def chat_tutor_endpoint(request: ChatRequest): return ChatResponse(reply=chat_with_tutor(request.history, request.course_context, request.message))
+
 @app.post("/api/path/generate")
 async def path_generate_endpoint(request: MasteryRequest): return generate_mastery_path(request.course_text, request.subject)
+
 @app.post("/api/path/step")
 async def step_content_endpoint(req: StepRequest): return generate_step_content(req.step_type, req.course_text, req.subject)
+
 
 # ✅ NOUVEAU ENDPOINT FICHE
 @app.post("/api/path/summary")
