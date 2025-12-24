@@ -7,7 +7,7 @@ console.log('🔧 API Configuration:', {
 });
 
 // ============================================
-// Types
+// Types Généraux (Legacy & Utiles)
 // ============================================
 
 export interface Quiz {
@@ -40,270 +40,152 @@ export interface FlashcardDeck {
   createdAt: string;
 }
 
-export interface ExtractedPage {
-  pageNumber: number;
-  text: string;
-  wordCount: number;
-}
-
 export interface ExtractTextResult {
   totalImages: number;
   pagesExtracted: number;
   extractedText: string;
-  pages: ExtractedPage[];
+  pages: any[];
 }
 
 // ============================================
-// Helper: Better error handling
+// Types Adaptive Learning (NOUVEAU)
+// ============================================
+
+export interface MasteryStep {
+    id: number;
+    type: 'theory' | 'diagnostic' | 'remediation' | 'exam';
+    status: 'locked' | 'unlocked' | 'completed';
+    content: any;
+}
+
+export interface MasteryPathResponse {
+    title: string;
+    steps: MasteryStep[];
+}
+
+export interface AnalysisResult {
+    id: number;
+    concept: string;
+    understanding_score: number;
+    correct_points: string[];
+    missing_points: string[];
+    misconceptions: string[];
+    feedback: string;
+}
+
+export interface ExamCorrection {
+    feedback_global: string;
+    correction_detailee: string;
+    weak_concept: string[];
+}
+
+// ============================================
+// Helper: Error Handling
 // ============================================
 
 async function handleApiResponse(response: Response): Promise<any> {
   const contentType = response.headers.get('content-type');
-
-  // Si pas de content-type ou pas JSON
   if (!contentType || !contentType.includes('application/json')) {
     const text = await response.text();
-    console.error('❌ Non-JSON Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      contentType,
-      body: text.substring(0, 500)
-    });
     throw new Error(`Erreur serveur (${response.status}): Réponse non-JSON`);
   }
-
-  // Tenter de parser le JSON
   let data;
-  try {
-    data = await response.json();
-  } catch (e) {
-    console.error('❌ JSON Parse Error:', e);
-    throw new Error('Impossible de parser la réponse du serveur');
-  }
-
-  // Si erreur HTTP
+  try { data = await response.json(); } catch (e) { throw new Error('Impossible de parser le JSON'); }
   if (!response.ok) {
-    console.error('❌ API Error Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      data
-    });
-
     const errorMessage = data?.detail || data?.message || `Erreur HTTP ${response.status}`;
     throw new Error(errorMessage);
   }
-
   return data;
 }
 
 // ============================================
-// API Functions
+// Fonctions API Classiques (Legacy)
 // ============================================
 
-/**
- * Extract text from multiple images
- */
-export async function extractTextFromMultipleImages(
-  images: string[]
-): Promise<ExtractTextResult> {
-  console.log('🌐 API Call: Extract text from images', {
-    count: images.length,
-    url: `${API_BASE_URL}/api/extract-text`,
-    firstImagePreview: images[0]?.substring(0, 50) + '...'
-  });
-
+export async function extractTextFromMultipleImages(images: string[]): Promise<ExtractTextResult> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/extract-text`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        images: images,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: images }),
     });
-
-    const data = await handleApiResponse(response);
-
-    console.log('✅ API Response: Extract text success', {
-      pagesExtracted: data.pagesExtracted,
-      totalChars: data.extractedText?.length
-    });
-
-    return data;
-
-  } catch (error: any) {
-    console.error('❌ API Error:', {
-      message: error.message,
-      stack: error.stack,
-      url: `${API_BASE_URL}/api/extract-text`
-    });
-    throw error;
-  }
+    return await handleApiResponse(response);
+  } catch (error) { throw error; }
 }
 
-/**
- * Generate quiz from text
- */
-export async function generateQuizFromText(
-  courseText: string,
-  numQuestions: number = 5,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
-): Promise<Quiz> {
-  console.log('🌐 API Call: Generate quiz from text', {
-    numQuestions,
-    difficulty,
-    textLength: courseText.length,
-    url: `${API_BASE_URL}/api/quiz/generate-from-text`
+export async function generateQuizFromText(courseText: string, numQuestions: number = 5, difficulty: string = 'medium'): Promise<Quiz> {
+  const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ course_text: courseText, num_questions: numQuestions, difficulty }),
   });
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-text`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        course_text: courseText,
-        num_questions: numQuestions,
-        difficulty: difficulty,
-      }),
-    });
-
-    const data = await handleApiResponse(response);
-
-    console.log('✅ API Response: Quiz generated', {
-      questionsCount: data.questions?.length
-    });
-
-    return data;
-
-  } catch (error: any) {
-    console.error('❌ API Error:', {
-      message: error.message,
-      stack: error.stack,
-      url: `${API_BASE_URL}/api/quiz/generate-from-text`
-    });
-    throw error;
-  }
+  return await handleApiResponse(response);
 }
 
-/**
- * Generate quiz from image
- */
-export async function generateQuizFromImage(
-  image: string,
-  numQuestions: number = 5,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
-): Promise<Quiz> {
-  console.log('🌐 API Call: Generate quiz from image', {
-    numQuestions,
-    difficulty,
-    imagePreview: image.substring(0, 50) + '...',
-    url: `${API_BASE_URL}/api/quiz/generate-from-image`
+export async function generateFlashcards(courseText: string, numCards: number = 10, difficulty: string = 'medium'): Promise<FlashcardDeck> {
+  const response = await fetch(`${API_BASE_URL}/api/flashcards/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ course_text: courseText, num_cards: numCards, difficulty }),
   });
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/quiz/generate-from-image`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: image,
-        num_questions: numQuestions,
-        difficulty: difficulty,
-      }),
-    });
-
-    const data = await handleApiResponse(response);
-
-    console.log('✅ API Response: Quiz generated from image', {
-      questionsCount: data.questions?.length
-    });
-
-    return data;
-
-  } catch (error: any) {
-    console.error('❌ API Error:', {
-      message: error.message,
-      stack: error.stack,
-      url: `${API_BASE_URL}/api/quiz/generate-from-image`
-    });
-    throw error;
-  }
+  return await handleApiResponse(response);
 }
 
-/**
- * Generate flashcards from text
- */
-export async function generateFlashcards(
-  courseText: string,
-  numCards: number = 10,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
-): Promise<FlashcardDeck> {
-  console.log('🌐 API Call: Generate flashcards', {
-    numCards,
-    difficulty,
-    textLength: courseText.length,
-    url: `${API_BASE_URL}/api/flashcards/generate`
-  });
+// Placeholder
+export async function getCourseById(id: number, userId: string): Promise<any> { return null; }
+export async function checkApiHealth(): Promise<boolean> { return true; }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/flashcards/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        course_text: courseText,
-        num_cards: numCards,
-        difficulty: difficulty,
-      }),
+
+// ============================================
+// Fonctions API Adaptive Learning (NOUVEAU)
+// ============================================
+
+/** 1. Start Path */
+export async function masteryStart(courseText: string, Subject: string): Promise<MasteryPathResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/adaptive/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_text: courseText, subject: Subject })
     });
-
-    const data = await handleApiResponse(response);
-
-    console.log('✅ API Response: Flashcards generated', {
-      cardsCount: data.flashcards?.length
-    });
-
-    return data;
-
-  } catch (error: any) {
-    console.error('❌ API Error:', {
-      message: error.message,
-      stack: error.stack,
-      url: `${API_BASE_URL}/api/flashcards/generate`
-    });
-    throw error;
-  }
+    return await handleApiResponse(response);
 }
 
-/**
- * Check API health
- */
-export async function checkApiHealth(): Promise<boolean> {
-  try {
-    console.log('🏥 Checking API health:', `${API_BASE_URL}/api/health`);
-
-    const response = await fetch(`${API_BASE_URL}/api/health`, {
-      method: 'GET',
+/** 2. Analyze Answer */
+export async function analyzeStudentAnswer(studentAnswer: string, question: string, expectedPoints: string[]): Promise<AnalysisResult> {
+    const response = await fetch(`${API_BASE_URL}/api/adaptive/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_answer: studentAnswer, question: question, expected_points: expectedPoints })
     });
+    return await handleApiResponse(response);
+}
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ API is healthy:', data);
-      return true;
-    } else {
-      console.error('❌ API health check failed:', response.status);
-      return false;
-    }
-  } catch (error: any) {
-    console.error('❌ API Health Check Failed:', {
-      message: error.message,
-      url: `${API_BASE_URL}/api/health`
+/** 3. Generate Practice (Flashcards + Exos) */
+export async function generatePractice(courseText: string, weakConcepts: string[]): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/adaptive/practice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_text: courseText, weak_concepts: weakConcepts })
     });
-    return false;
-  }
+    return await handleApiResponse(response);
+}
+
+/** 4. Generate Exam */
+export async function generateExam(courseText: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/adaptive/exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_text: courseText })
+    });
+    return await handleApiResponse(response);
+}
+
+/** 5. Evaluate Exam */
+export async function evaluateExam(examSubject: string, courseText: string, correctionCriteria: string[], studentAnswers: string): Promise<ExamCorrection> {
+    const response = await fetch(`${API_BASE_URL}/api/path/exam/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exam_subject: examSubject, course_text: courseText, correction_criteria: correctionCriteria, student_answers: studentAnswers })
+    });
+    return await handleApiResponse(response);
 }

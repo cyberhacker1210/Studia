@@ -153,6 +153,12 @@ class PracticeRequest(BaseModel):
 class ExamRequest(BaseModel):
     course_text: str
 
+class ExamSubmissionRequest(BaseModel):
+    exam_subject: str
+    course_text: str
+    correction_criteria: List[str]
+    student_answers: str
+
 
 
 # --- ENDPOINTS ---
@@ -266,6 +272,17 @@ def api_generate_practice(request: PracticeRequest):
 @app.post("/api/adaptive/exam")
 def api_generate_exam(request: ExamRequest):
     return generate_exam_simulation(request.course_text)
+
+@app.post("/api/path/exam/evaluate")
+async def api_evaluate_exam(request: ExamSubmissionRequest):
+    # On appelle ta fonction magique
+    result = evaluate_exam_submission(
+        exam_subject=request.exam_subject,
+        course_text=request.course_text,
+        correction_criteria=request.correction_criteria,
+        student_answers=request.student_answers
+    )
+    return result
 
 if __name__ == "__main__":
     import uvicorn
